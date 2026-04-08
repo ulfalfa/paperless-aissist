@@ -1,0 +1,19 @@
+{{define "logs.html"}}
+{{template "layout.html" .}}
+{{end}}
+
+{{define "content"}}
+<h2>Logs</h2>
+<div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
+  <button hx-delete="/api/logs"
+          hx-on::after-request="document.getElementById('log-list').innerHTML='<p>Logs cleared</p>'"
+          class="secondary outline">Clear Logs</button>
+  <small style="color: var(--pico-muted-color)">Auto-refreshes every 3s</small>
+</div>
+<div id="log-list"
+     hx-get="/ui/logs"
+     hx-trigger="every 3s"
+     hx-swap="innerHTML">
+  {{template "logs_partial.html" .Data}}
+</div>
+{{end}}

@@ -1,0 +1,37 @@
+{{define "chat_answer.html"}}
+{{with .Error}}
+<div class="chat-wrap">
+  <div class="chat-bubble chat-bubble-user">{{$.Question}}</div>
+  <div class="chat-bubble chat-bubble-assistant">
+    <p class="error-msg" style="margin:0">{{.}}</p>
+  </div>
+</div>
+{{end}}
+{{with .HistoryJSON}}
+<input type="hidden" id="chat-history" name="history" value="{{.}}" hx-swap-oob="true">
+{{end}}
+{{with .Result}}
+<div class="chat-wrap">
+  <div class="chat-bubble chat-bubble-user">{{$.Question}}</div>
+  <div class="chat-bubble chat-bubble-assistant">
+    {{if $.Model}}<small style="color: var(--pico-muted-color); display:block; margin-bottom:0.4rem;">{{$.Model}}</small>{{end}}
+    <p style="white-space: pre-wrap; line-height: 1.6; margin: 0;">{{.Answer}}</p>
+    {{if .Sources}}
+    <details style="margin-top: 0.75rem;">
+      <summary style="cursor: pointer; color: var(--pico-muted-color); font-size: 0.85rem;">
+        Sources ({{len .Sources}})
+      </summary>
+      <ul style="margin: 0.4rem 0 0; padding-left: 1.2rem; font-size: 0.85rem;">
+        {{range .Sources}}
+        <li>
+          <a href="{{.PaperlessURL}}" target="_blank">{{.Title}}</a>
+          <small style="color: var(--pico-muted-color);"> · {{.ScorePercent}}%</small>
+        </li>
+        {{end}}
+      </ul>
+    </details>
+    {{end}}
+  </div>
+</div>
+{{end}}
+{{end}}

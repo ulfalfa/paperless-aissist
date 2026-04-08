@@ -1,0 +1,66 @@
+{{define "analyze_result.html"}}
+{{if .Error}}
+<p class="error-msg">{{.Error}}</p>
+{{else}}
+<article>
+  <header><strong>Document {{.DocumentID}}</strong> — {{.Document.Title}}</header>
+  {{with .Perf}}
+  <div style="display:flex; gap:1.5rem; flex-wrap:wrap; margin-bottom:1rem; font-size:0.82rem; color:var(--pico-muted-color);">
+    <span title="Total time including model load">⏱ {{printf "%.1f" (divf .TotalDurationMs 1000)}}s total</span>
+    <span title="Tokens generated per second">⚡ {{printf "%.0f" .TokensPerSec}} tok/s</span>
+    <span title="Number of tokens generated">📤 {{.GeneratedTokens}} tokens</span>
+    <span title="Prompt evaluation time">📥 {{.PromptTokens}} prompt tokens</span>
+    <span title="Time to generate response">🧠 {{printf "%.0f" .GeneratedMs}}ms generation</span>
+    {{if gt .LoadDurationMs 100.0}}<span title="Model load time">📦 {{printf "%.0f" .LoadDurationMs}}ms load</span>{{end}}
+  </div>
+  {{end}}
+  <form hx-post="/ui/documents/{{.DocumentID}}/save" hx-target="#result">
+    <label>
+      Title
+      <input type="text" name="title" value="{{.Analysis.Title}}" required>
+    </label>
+    <div class="grid">
+      <label>
+        Created Date
+        <input type="date" name="created_date" value="{{deref .Analysis.CreatedDate}}">
+      </label>
+      <label>
+        Correspondent
+        <input type="text" name="correspondent" list="correspondents-list"
+               value="{{deref .Analysis.Correspondent}}">
+        <datalist id="correspondents-list">
+          {{range .Correspondents}}<option value="{{.Name}}">{{end}}
+        </datalist>
+      </label>
+      <label>
+        Document Type
+        <input type="text" name="document_type" list="doctypes-list"
+               value="{{deref .Analysis.DocumentType}}">
+        <datalist id="doctypes-list">
+          {{range .DocumentTypes}}<option value="{{.Name}}">{{end}}
+        </datalist>
+      </label>
+    </div>
+    <label>
+      Tags
+      <input id="tags-input" name="tags" value="{{join .Analysis.Tags ", "}}"
+             data-whitelist='[{{range $i, $t := .AllTags}}{{if $i}},{{end}}"{{$t.Name}}"{{end}}]'>
+    </label>
+    <button type="submit">Save to paperless-ngx</button>
+  </form>
+  <script>
+    (function() {
+      var input = document.getElementById('tags-input');
+      var whitelist = JSON.parse(input.dataset.whitelist || '[]');
+      var tagify = new Tagify(input, {
+        whitelist: whitelist,
+        dropdown: { enabled: 1, maxItems: 20, closeOnSelect: false },
+        originalInputValueFormat: function(tags) {
+          return tags.map(function(t){ return t.value; }).join(', ');
+        }
+      });
+    })();
+  </script>
+</article>
+{{end}}
+{{end}}

@@ -1,0 +1,14 @@
+{{define "scan.html"}}
+{{template "layout.html" .}}
+{{end}}
+
+{{define "content"}}
+<h2>Auto-Scanner</h2>
+
+<div id="scan-status"
+     hx-get="/ui/scan/status"
+     hx-trigger="every 3s"
+     hx-swap="outerHTML">
+  {{template "scan_status.html" (map "Status" .Data)}}
+</div>
+{{end}}

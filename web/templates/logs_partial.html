@@ -1,0 +1,19 @@
+{{define "logs_partial.html"}}
+{{if not .}}
+<p style="color: var(--pico-muted-color)">No log entries yet.</p>
+{{else}}
+<table>
+  <thead><tr><th>Time</th><th>Level</th><th>Message</th><th>Detail</th></tr></thead>
+  <tbody>
+  {{range .}}
+  <tr class="log-{{.Level}}">
+    <td style="white-space: nowrap; font-size: 0.8rem;">{{.Timestamp}}</td>
+    <td><strong>{{.Level}}</strong></td>
+    <td>{{.Message}}</td>
+    <td style="font-size: 0.8rem; color: var(--pico-muted-color);">{{.Detail}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{end}}
+{{end}}

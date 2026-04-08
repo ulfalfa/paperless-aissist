@@ -1,0 +1,39 @@
+{{define "scan_status.html"}}
+<div id="scan-status"
+     hx-get="/ui/scan/status"
+     hx-trigger="every 3s"
+     hx-swap="outerHTML">
+  {{with .Flash}}<p class="flash">{{.}}</p>{{end}}
+  {{$s := .Status}}
+  <article>
+    <header>Scanner Status</header>
+    <p>
+      <strong>State:</strong>
+      {{if $s.Running}}
+        <span style="color:orange">&#9679; Running</span>
+        {{if $s.Total}}
+          <span style="color: var(--pico-muted-color); font-size: 0.9rem;">— {{$s.Done}} / {{$s.Total}} documents</span>
+        {{end}}
+      {{else}}
+        <span style="color:green">&#9679; Idle</span>
+      {{end}}
+    </p>
+    {{if and $s.Running $s.Total}}
+    <progress value="{{$s.Done}}" max="{{$s.Total}}" style="margin-bottom: 0.5rem;"></progress>
+    {{end}}
+    <p><strong>Interval:</strong> {{if $s.IntervalMinutes}}every {{$s.IntervalMinutes}} min{{else}}disabled{{end}}</p>
+    {{if $s.LastRun}}<p><strong>Last run:</strong> {{$s.LastRun}}</p>{{end}}
+    {{if $s.NextRun}}<p><strong>Next run:</strong> {{$s.NextRun}}</p>{{end}}
+    <p><strong>Last count:</strong> {{$s.LastCount}} document(s) updated</p>
+    {{if $s.LastErrors}}
+    <details>
+      <summary>{{len $s.LastErrors}} error(s)</summary>
+      <ul>{{range $s.LastErrors}}<li>{{.}}</li>{{end}}</ul>
+    </details>
+    {{end}}
+  </article>
+  <form hx-post="/ui/scan/run" hx-target="#scan-status" hx-swap="outerHTML">
+    <button type="submit" {{if $s.Running}}disabled{{end}}>Run Now</button>
+  </form>
+</div>
+{{end}}

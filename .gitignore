@@ -1,0 +1,21 @@
+# Binaries
+paperless-aissist
+paperless-aissist-darwin-arm64
+paperless-aissist-linux-amd64
+aissist
+
+# Environment
+.env
+
+# Data / vector index
+data/
+
+# Build artifacts
+dist/
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/

@@ -1,0 +1,10 @@
+{{define "settings.html"}}
+{{template "layout.html" .}}
+{{end}}
+
+{{define "content"}}
+<h2>Settings</h2>
+<div id="settings-form">
+  {{template "settings_form.html" .Data}}
+</div>
+{{end}}

@@ -1,0 +1,115 @@
+{{define "chat.html"}}
+{{template "layout.html" .}}
+{{end}}
+
+{{define "content"}}
+<h2>Chat with Documents</h2>
+
+{{template "index_status.html" (map "Status" .Data.IndexStatus)}}
+
+<div style="display: flex; flex-direction: column; height: calc(100vh - 320px); min-height: 300px;">
+
+  <!-- Message history -->
+  <div id="chat-messages"
+       style="flex: 1; overflow-y: auto; padding: 0.5rem 0; margin-bottom: 1rem;">
+    <p style="color: var(--pico-muted-color); font-size: 0.9rem; text-align: center; margin-top: 2rem;">
+      Ask anything about your documents.
+    </p>
+  </div>
+
+  <!-- Input area -->
+  <div style="border-top: 1px solid var(--pico-muted-border-color); padding-top: 1rem;">
+    <form id="chat-form"
+          hx-post="/ui/chat"
+          hx-target="#chat-messages"
+          hx-swap="beforeend"
+          hx-indicator="#chat-spinner">
+      <input type="hidden" name="chatModel" id="chat-model-hidden" value="{{.Data.DefaultModel}}">
+      <input type="hidden" name="history" id="chat-history" value="[]">
+      <div style="display: flex; gap: 0.75rem; align-items: flex-end;">
+        <textarea id="question" name="question" rows="2"
+                  placeholder="Frage stellen…"
+                  style="flex: 1; resize: none; margin: 0;"
+                  required></textarea>
+        <div style="display: flex; flex-direction: column; gap: 0.5rem; min-width: 160px;">
+          <select id="chat-model" style="margin: 0; font-size: 0.85rem; padding: 0.4rem 0.6rem;">
+            {{range .Data.Models}}
+            <option value="{{.}}" {{if eq . $.Data.DefaultModel}}selected{{end}}>{{.}}</option>
+            {{end}}
+          </select>
+          <button type="submit" style="margin: 0;">
+            <span id="chat-spinner" class="htmx-indicator spinner">⟳</span>
+            Send
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+</div>
+
+<style>
+  .chat-wrap { margin-bottom: 1rem; }
+  .chat-bubble {
+    max-width: 78%;
+    padding: 0.65rem 1rem;
+    border-radius: 1.1rem;
+    line-height: 1.5;
+    word-wrap: break-word;
+  }
+  .chat-bubble-user {
+    background: var(--pico-primary);
+    color: #fff;
+    margin-left: auto;
+    border-bottom-right-radius: 0.25rem;
+  }
+  .chat-bubble-assistant {
+    background: var(--pico-card-background-color);
+    border: 1px solid var(--pico-muted-border-color);
+    margin-right: auto;
+    margin-top: 0.4rem;
+    border-bottom-left-radius: 0.25rem;
+  }
+</style>
+
+<script>
+  (function() {
+    const sel = document.getElementById('chat-model');
+    const hidden = document.getElementById('chat-model-hidden');
+    const msgs = document.getElementById('chat-messages');
+    const form = document.getElementById('chat-form');
+
+    // Restore last model from localStorage
+    const saved = localStorage.getItem('paperless-chat-model');
+    if (saved && sel.querySelector('option[value="' + saved + '"]')) {
+      sel.value = saved;
+      hidden.value = saved;
+    }
+    sel.addEventListener('change', function() {
+      hidden.value = this.value;
+      localStorage.setItem('paperless-chat-model', this.value);
+    });
+
+    // Auto-scroll to bottom after new messages
+    document.body.addEventListener('htmx:afterSettle', function(e) {
+      if (msgs) msgs.scrollTop = msgs.scrollHeight;
+    });
+
+    // Clear textarea and hide placeholder after submit
+    form.addEventListener('htmx:afterRequest', function() {
+      const q = document.getElementById('question');
+      if (q) q.value = '';
+      const placeholder = msgs.querySelector('p');
+      if (placeholder) placeholder.remove();
+    });
+
+    // Enter = send, Shift+Enter = new line
+    document.getElementById('question').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        htmx.trigger(form, 'submit');
+      }
+    });
+  })();
+</script>
+{{end}}

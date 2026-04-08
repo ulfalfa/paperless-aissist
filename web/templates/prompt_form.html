@@ -1,0 +1,8 @@
+{{define "prompt_form.html"}}
+{{with .Flash}}<p class="flash">{{.}}</p>{{end}}
+{{with .Error}}<p class="error-msg">{{.}}</p>{{end}}
+<form id="prompt-form" hx-post="/ui/prompt" hx-target="#prompt-form" hx-swap="outerHTML">
+  <textarea name="prompt" rows="20" style="font-family: monospace; font-size: 0.85rem;">{{.Prompt}}</textarea>
+  <button type="submit">Save Prompt</button>
+</form>
+{{end}}

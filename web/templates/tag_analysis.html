@@ -1,0 +1,81 @@
+{{define "tag_analysis.html"}}
+{{if .Error}}
+<p class="error-msg">{{.Error}}</p>
+{{else}}
+<article>
+  <header>Analysis Results</header>
+  <p>{{.Summary}}</p>
+
+  <table>
+    <thead>
+      <tr><th>Tag</th><th>Docs</th><th>Action</th><th>Details</th><th></th></tr>
+    </thead>
+    <tbody>
+    {{range .Suggestions}}
+    <tr style="{{if eq .Action "delete"}}opacity: 0.6{{else if eq .Action "merge"}}background: rgba(255,193,7,0.1){{end}}">
+      <td><strong>{{.TagName}}</strong></td>
+      <td style="text-align: center;">{{.Count}}</td>
+      <td>
+        {{if eq .Action "keep"}}
+          <span style="color: green;">✓ Keep</span>
+        {{else if eq .Action "merge"}}
+          <span style="color: orange;">→ Merge into {{deref .MergeInto}}</span>
+        {{else if eq .Action "delete"}}
+          <span style="color: red;">✗ Delete</span>
+        {{end}}
+      </td>
+      <td style="font-size: 0.9rem; color: var(--pico-muted-color);">{{.Reason}}</td>
+      <td style="text-align: right; white-space: nowrap;">
+        {{if eq .Action "merge"}}
+          <button class="secondary outline"
+                  hx-post="/ui/cleanup/merge"
+                  hx-vals='{"sourceId": {{.TagID}}, "targetName": "{{deref .MergeInto}}"}'
+                  hx-target="#analysis-result"
+                  onclick="return confirm('Merge {{.TagName}} into {{deref .MergeInto}}?');"
+                  style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">
+            Apply
+          </button>
+        {{else if eq .Action "delete"}}
+          <button class="secondary outline"
+                  hx-post="/ui/cleanup/delete"
+                  hx-vals='{"tagId": {{.TagID}}}'
+                  hx-target="#analysis-result"
+                  onclick="return confirm('Delete {{.TagName}}?');"
+                  style="padding: 0.25rem 0.5rem; font-size: 0.8rem; color: red;">
+            Delete
+          </button>
+        {{end}}
+      </td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+</article>
+{{end}}
+{{end}}
+
+{{define "tag_list.html"}}
+<article style="margin-top: 1.5rem;">
+  <header>Tags ({{len .}} total)</header>
+  <table>
+    <thead>
+      <tr><th>Tag Name</th><th style="text-align: right;">Documents</th></tr>
+    </thead>
+    <tbody>
+    {{range .}}
+    <tr>
+      <td>{{.Name}}</td>
+      <td style="text-align: right;">{{.Count}}</td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  <button hx-post="/ui/cleanup/analyze"
+          hx-target="#analysis-result"
+          hx-indicator="#analyze-spinner"
+          style="margin-top: 1rem;">
+    <span id="analyze-spinner" class="htmx-indicator spinner">⟳</span>
+    Analyze for Cleanup
+  </button>
+</article>
+{{end}}

@@ -1,0 +1,50 @@
+{{define "analyze.html"}}
+{{template "layout.html" .}}
+{{end}}
+
+{{define "content"}}
+<h2>Analyze Document</h2>
+<div class="grid" style="grid-template-columns: 1fr 1fr; align-items: start; gap: 2rem;">
+
+  {{/* Left: tag browser */}}
+  <div>
+    <label>
+      Filter by tag
+      {{with .Data}}
+      <select hx-get="/ui/tags/docs"
+              hx-target="#tag-doc-list"
+              hx-trigger="change"
+              hx-include="[name='tagId']"
+              name="tagId">
+        <option value="">— select a tag —</option>
+        {{range .Tags}}
+        <option value="{{.ID}}"{{if $.Data.ScanTagID}}{{if eq .ID (derefInt $.Data.ScanTagID)}} selected{{end}}{{end}}>{{.Name}}</option>
+        {{end}}
+      </select>
+      {{end}}
+    </label>
+    <div id="tag-doc-list">
+      {{with .Data}}{{if .TaggedDocs}}
+        {{template "tag_docs.html" .TaggedDocs}}
+      {{end}}{{end}}
+    </div>
+  </div>
+
+  {{/* Right: analyze form */}}
+  <div>
+    <form hx-post="/ui/analyze" hx-target="#result" hx-indicator="#spinner">
+      <label>
+        Document ID
+        <input id="doc-id-input" type="number" name="documentId" placeholder="e.g. 42" min="1">
+      </label>
+      <small id="selected-doc-label" style="color: var(--pico-muted-color); display: block; margin-top: -0.75rem; margin-bottom: 0.75rem;"></small>
+      <button type="submit">
+        <span id="spinner" class="htmx-indicator spinner">&#x27F3;</span>
+        Analyze
+      </button>
+    </form>
+  </div>
+</div>
+
+<div id="result" style="margin-top: 2rem;"></div>
+{{end}}

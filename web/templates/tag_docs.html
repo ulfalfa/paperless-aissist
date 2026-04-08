@@ -1,0 +1,21 @@
+{{define "tag_docs.html"}}
+{{if .}}
+<div style="margin-top: 0.5rem;">
+  <small style="color: var(--pico-muted-color)">{{len .}} document(s)</small>
+  <ul style="list-style: none; padding: 0; margin: 0.5rem 0; max-height: 260px; overflow-y: auto; border: var(--pico-border-width) solid var(--pico-form-element-border-color); border-radius: var(--pico-border-radius);">
+    {{range .}}
+    <li>
+      <a href="#"
+         style="display: block; padding: 0.4rem 0.75rem; text-decoration: none; color: var(--pico-color); border-bottom: var(--pico-border-width) solid var(--pico-table-border-color);"
+         hx-on:click="document.getElementById('doc-id-input').value={{.ID}}; document.getElementById('selected-doc-label').textContent='{{.ID}} — {{.Title}}'; return false;">
+        <span style="color: var(--pico-muted-color); font-size: 0.8rem;">{{.ID}}</span>
+        {{.Title}}
+      </a>
+    </li>
+    {{end}}
+  </ul>
+</div>
+{{else}}
+<p style="color: var(--pico-muted-color); font-size: 0.9rem; margin-top: 0.5rem;">No documents found for this tag.</p>
+{{end}}
+{{end}}

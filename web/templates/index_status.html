@@ -1,0 +1,62 @@
+{{define "index_status.html"}}
+<div id="index-status"
+     hx-get="/ui/rag/status"
+     hx-trigger="every 3s"
+     hx-swap="outerHTML">
+  {{with .Flash}}<p class="flash">{{.}}</p>{{end}}
+  <div style="background: var(--pico-card-background-color);
+              border: 1px solid var(--pico-muted-border-color);
+              border-radius: var(--pico-border-radius);
+              padding: 0.75rem 1rem; margin-bottom: 1.5rem;">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+      <div>
+        {{if .Status.Running}}
+          <strong>Indexing…</strong>
+          <span style="color: var(--pico-muted-color); font-size: 0.9rem;">
+            {{.Status.Done}} / {{.Status.Total}} documents
+          </span>
+          {{if gt .Status.Errors 0}}
+            <small style="color: var(--pico-del-color);"> · {{.Status.Errors}} errors</small>
+          {{end}}
+        {{else if gt .Status.DocCount 0}}
+          <strong style="color: green;">● {{.Status.DocCount}} documents indexed</strong>
+          {{if .Status.LastRun}}
+            <small style="color: var(--pico-muted-color);"> · {{.Status.LastRun}}</small>
+          {{end}}
+          {{if gt .Status.Errors 0}}
+            <small style="color: var(--pico-del-color);"> · {{.Status.Errors}} errors last run</small>
+          {{end}}
+        {{else}}
+          <span style="color: var(--pico-muted-color);">Not indexed yet — click Sync to start</span>
+        {{end}}
+      </div>
+      <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <span id="index-spinner" class="htmx-indicator spinner">⟳</span>
+        <form hx-post="/ui/rag/index" hx-target="#index-status" hx-swap="outerHTML"
+              hx-indicator="#index-spinner" style="margin: 0;">
+          <button type="submit" class="outline"
+                  style="padding: 0.35rem 0.9rem; font-size: 0.85rem; margin: 0;"
+                  {{if .Status.Running}}disabled{{end}}>
+            Sync
+          </button>
+        </form>
+        <form hx-post="/ui/rag/index" hx-target="#index-status" hx-swap="outerHTML"
+              hx-indicator="#index-spinner"
+              hx-vals='{"full":"true"}'
+              hx-confirm="Re-index all documents from scratch?"
+              style="margin: 0;">
+          <button type="submit" class="secondary outline"
+                  style="padding: 0.35rem 0.9rem; font-size: 0.85rem; margin: 0;"
+                  {{if .Status.Running}}disabled{{end}}>
+            Re-index All
+          </button>
+        </form>
+      </div>
+    </div>
+    {{if .Status.Running}}
+    <progress value="{{.Status.Done}}" max="{{.Status.Total}}"
+              style="width: 100%; margin-top: 0.5rem; margin-bottom: 0;"></progress>
+    {{end}}
+  </div>
+</div>
+{{end}}

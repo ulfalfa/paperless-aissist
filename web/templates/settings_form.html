@@ -1,0 +1,51 @@
+{{define "settings_form.html"}}
+{{with .Flash}}<p class="flash">{{.}}</p>{{end}}
+{{with .Error}}<p class="error-msg">{{.}}</p>{{end}}
+{{$cfg := .Config}}
+<form id="settings-form" hx-post="/ui/settings" hx-target="#settings-form" hx-swap="outerHTML">
+  <article>
+    <header>Ollama</header>
+    <div class="grid">
+      <label>Host<input type="text" name="ollamaHost" value="{{$cfg.OllamaHost}}"></label>
+      <label>Model<input type="text" name="ollamaModel" value="{{$cfg.OllamaModel}}"></label>
+    </div>
+  </article>
+  <article>
+    <header>paperless-ngx</header>
+    <label>Base URL<input type="url" name="paperlessBaseUrl" value="{{$cfg.PaperlessURL}}"></label>
+    <label>API Token<input type="password" name="paperlessApiToken" value="{{$cfg.PaperlessToken}}"></label>
+  </article>
+  <article>
+    <header>Scanner</header>
+    <div class="grid">
+      <label>Scan Tag<input type="text" name="scanTag" value="{{$cfg.ScanTag}}"></label>
+      <label>Interval (minutes, 0=disabled)<input type="number" name="scanInterval" value="{{$cfg.ScanInterval}}" min="0"></label>
+    </div>
+  </article>
+  <article>
+    <header>RAG / Chat</header>
+    <div class="grid">
+      <label>Embed Model<input type="text" name="embedModel" value="{{$cfg.EmbedModel}}" placeholder="bge-m3"></label>
+      <label>Index Path<input type="text" name="indexPath" value="{{$cfg.IndexPath}}" placeholder="./data"></label>
+    </div>
+  </article>
+  <article>
+    <header>Metadata</header>
+    <div class="grid">
+      <label>AI Tag<input type="text" name="aiTag" value="{{$cfg.AITag}}"></label>
+      <label>Port<input type="text" name="port" value="{{$cfg.Port}}"></label>
+      <label>Prompt File<input type="text" name="promptFile" value="{{$cfg.PromptFile}}"></label>
+    </div>
+    <label>
+      <input type="checkbox" name="strictMetadata" {{if $cfg.StrictMetadata}}checked{{end}}>
+      Strict Metadata (don't create new tags/correspondents/types)
+    </label>
+  </article>
+  <button type="submit">Save Settings</button>
+</form>
+
+<h3 style="margin-top: 2rem;">Prompt Template</h3>
+<div id="prompt-form">
+  {{template "prompt_form.html" (map "Prompt" .Prompt)}}
+</div>
+{{end}}
