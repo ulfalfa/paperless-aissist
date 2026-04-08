@@ -46,7 +46,7 @@ The web UI is then available at `http://<your-server>:8080`.
 | `SCAN_INTERVAL` | `0` | Scanner interval in minutes (`0` = disabled) |
 | `AI_TAG` | `ai-gen` | Tag added to every AI-processed document |
 | `STRICT_METADATA` | `false` | If `true`, unknown tags/correspondents/types are not created |
-| `EMBED_MODEL` | `bge-m3` | Embedding model for RAG chat |
+| `EMBED_MODEL` | `bge-m3:latest` | Embedding model for RAG chat |
 | `INDEX_PATH` | `./data` | Directory for the vector index |
 
 Config and prompt can also be edited at runtime via the web UI.

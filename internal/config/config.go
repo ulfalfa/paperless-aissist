@@ -30,7 +30,7 @@ func Load() (*types.AppConfig, error) {
 		ScanInterval:   interval,
 		AITag:          getEnv("AI_TAG", "ai-gen"),
 		StrictMetadata: strict,
-		EmbedModel:     getEnv("EMBED_MODEL", "mxbai-embed-large"),
+		EmbedModel:     getEnv("EMBED_MODEL", "bge-m3:latest"),
 		IndexPath:      getEnv("INDEX_PATH", "./data"),
 	}, nil
 }
