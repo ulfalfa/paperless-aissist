@@ -1,0 +1,26 @@
+[Unit]
+Description=paperless-aissist — AI metadata extraction for paperless-ngx
+Documentation=https://gitlab.com/ulfalfa/paperless-aissist
+After=network.target ollama.service
+Wants=ollama.service
+
+[Service]
+Type=simple
+User=paperless-aissist
+Group=paperless-aissist
+WorkingDirectory=/opt/paperless-aissist
+ExecStart=/opt/paperless-aissist/paperless-aissist --server
+Restart=on-failure
+RestartSec=5
+
+# Load config from .env file in WorkingDirectory
+EnvironmentFile=/opt/paperless-aissist/.env
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/paperless-aissist/data
+
+[Install]
+WantedBy=multi-user.target
