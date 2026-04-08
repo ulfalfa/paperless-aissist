@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
-	"path/filepath"
 	"reflect"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	assets "github.com/ulf/paperless-aissist/web"
 	"github.com/ulf/paperless-aissist/internal/config"
 	"github.com/ulf/paperless-aissist/internal/logger"
 	"github.com/ulf/paperless-aissist/internal/mcp"
@@ -27,15 +26,11 @@ import (
 )
 
 var (
-	tmplDir  string
 	tmplFunc template.FuncMap
 	partials *template.Template
 )
 
 func init() {
-	_, filename, _, _ := runtime.Caller(0)
-	tmplDir = filepath.Join(filepath.Dir(filename), "..", "..", "web", "templates")
-
 	tmplFunc = template.FuncMap{
 		"deref": func(s *string) string {
 			if s == nil {
@@ -95,34 +90,34 @@ func init() {
 	}
 
 	// Partials don't define "content" so they can share one template set
-	partials = template.Must(template.New("").Funcs(tmplFunc).ParseFiles(
-		filepath.Join(tmplDir, "analyze_result.html"),
-		filepath.Join(tmplDir, "tag_docs.html"),
-		filepath.Join(tmplDir, "tag_analysis.html"),
-		filepath.Join(tmplDir, "scan_status.html"),
-		filepath.Join(tmplDir, "settings_form.html"),
-		filepath.Join(tmplDir, "prompt_form.html"),
-		filepath.Join(tmplDir, "logs_partial.html"),
-		filepath.Join(tmplDir, "index_status.html"),
-		filepath.Join(tmplDir, "chat_answer.html"),
+	partials = template.Must(template.New("").Funcs(tmplFunc).ParseFS(assets.FS,
+		"templates/analyze_result.html",
+		"templates/tag_docs.html",
+		"templates/tag_analysis.html",
+		"templates/scan_status.html",
+		"templates/settings_form.html",
+		"templates/prompt_form.html",
+		"templates/logs_partial.html",
+		"templates/index_status.html",
+		"templates/chat_answer.html",
 	))
 }
 
 // pageTmpl loads layout + all partials + a specific page file into an isolated
 // template set. Including only one page file avoids {{define "content"}} conflicts.
 func pageTmpl(page string) *template.Template {
-	return template.Must(template.New("").Funcs(tmplFunc).ParseFiles(
-		filepath.Join(tmplDir, "layout.html"),
-		filepath.Join(tmplDir, "analyze_result.html"),
-		filepath.Join(tmplDir, "tag_docs.html"),
-		filepath.Join(tmplDir, "tag_analysis.html"),
-		filepath.Join(tmplDir, "scan_status.html"),
-		filepath.Join(tmplDir, "settings_form.html"),
-		filepath.Join(tmplDir, "prompt_form.html"),
-		filepath.Join(tmplDir, "logs_partial.html"),
-		filepath.Join(tmplDir, "index_status.html"),
-		filepath.Join(tmplDir, "chat_answer.html"),
-		filepath.Join(tmplDir, page),
+	return template.Must(template.New("").Funcs(tmplFunc).ParseFS(assets.FS,
+		"templates/layout.html",
+		"templates/analyze_result.html",
+		"templates/tag_docs.html",
+		"templates/tag_analysis.html",
+		"templates/scan_status.html",
+		"templates/settings_form.html",
+		"templates/prompt_form.html",
+		"templates/logs_partial.html",
+		"templates/index_status.html",
+		"templates/chat_answer.html",
+		"templates/"+page,
 	))
 }
 
