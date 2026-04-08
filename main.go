@@ -21,6 +21,9 @@ import (
 	"github.com/ulf/paperless-aissist/internal/web"
 )
 
+// version is set via -ldflags="-X main.version=vX.Y.Z" at build time.
+var version = "dev"
+
 func main() {
 	_ = godotenv.Load(".env")
 
@@ -44,7 +47,7 @@ func main() {
 	case *docID > 0:
 		runDocument(*docID, *dryRun)
 	default:
-		fmt.Println("paperless-aissist — AI metadata extraction for paperless-ngx")
+		fmt.Printf("paperless-aissist %s — AI metadata extraction for paperless-ngx\n", version)
 		fmt.Println()
 		fmt.Println("Usage:")
 		fmt.Println("  paperless-aissist --server              Start web server")
