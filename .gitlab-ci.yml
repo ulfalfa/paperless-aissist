@@ -19,7 +19,9 @@ release:
   stage: release
   image: node:lts-alpine
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TITLE !~ /^chore\(release\):/'
+    - if: '$CI_COMMIT_TITLE =~ /^chore\(release\):/'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"'
   before_script:
     - apk add --no-cache git
     - export GITLAB_TOKEN="${GL_TOKEN}"
