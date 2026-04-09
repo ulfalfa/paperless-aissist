@@ -1,3 +1,10 @@
+## [0.4.4](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.4.3...v0.4.4) (2026-04-09)
+
+
+### Bug Fixes
+
+* unified usage output on stderr for no-args and unknown-flag cases ([5d364c9](https://gitlab.com/ulfalfa/paperless-aissist/commit/5d364c9e84def8bd7dad5af2105a61ce45467845))
+
 ## [0.4.3](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.4.2...v0.4.3) (2026-04-09)
 
 
