@@ -36,8 +36,8 @@ BINARY_URL=$(echo "$RELEASE_JSON" | grep -o "\"url\":\"[^\"]*${BINARY}\"" | head
 
 # ─── check current version ───────────────────────────────────────────────────
 CURRENT_VERSION=""
-if [[ -x "$INSTALL_DIR/paperless-aissist" ]]; then
-  CURRENT_VERSION=$("$INSTALL_DIR/paperless-aissist" --version 2>/dev/null || true)
+if [[ -f "$INSTALL_DIR/.version" ]]; then
+  CURRENT_VERSION=$(cat "$INSTALL_DIR/.version")
 fi
 
 if [[ "$CURRENT_VERSION" == "$VERSION" ]]; then
@@ -85,6 +85,9 @@ if [[ ! -f "$INSTALL_DIR/.env" ]]; then
 else
   success ".env already exists — skipping"
 fi
+
+# ─── store installed version ─────────────────────────────────────────────────
+echo "$VERSION" > "$INSTALL_DIR/.version"
 
 # ─── fix permissions ─────────────────────────────────────────────────────────
 chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
