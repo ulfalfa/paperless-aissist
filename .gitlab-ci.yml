@@ -24,7 +24,8 @@ release:
     - apk add --no-cache git
     - export GITLAB_TOKEN="${GL_TOKEN}"
     - npm install --no-save semantic-release @semantic-release/commit-analyzer
-        @semantic-release/release-notes-generator @semantic-release/gitlab
+        @semantic-release/release-notes-generator @semantic-release/changelog
+        @semantic-release/git @semantic-release/gitlab
   script:
     - npx semantic-release
 
