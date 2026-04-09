@@ -34,7 +34,22 @@ VERSION=$(echo "$RELEASE_JSON" | grep -o '"tag_name":"[^"]*"' | head -1 | cut -d
 BINARY_URL=$(echo "$RELEASE_JSON" | grep -o "\"url\":\"[^\"]*${BINARY}\"" | head -1 | cut -d'"' -f4)
 [[ -n "$BINARY_URL" ]] || die "No binary found for $ARCH in release $VERSION."
 
-info "Installing paperless-aissist $VERSION..."
+# ─── check current version ───────────────────────────────────────────────────
+CURRENT_VERSION=""
+if [[ -x "$INSTALL_DIR/paperless-aissist" ]]; then
+  CURRENT_VERSION=$("$INSTALL_DIR/paperless-aissist" --version 2>/dev/null || true)
+fi
+
+if [[ "$CURRENT_VERSION" == "$VERSION" ]]; then
+  success "paperless-aissist $VERSION is already up to date."
+  exit 0
+fi
+
+if [[ -n "$CURRENT_VERSION" ]]; then
+  info "Updating paperless-aissist $CURRENT_VERSION → $VERSION..."
+else
+  info "Installing paperless-aissist $VERSION..."
+fi
 
 # ─── create user & directories ───────────────────────────────────────────────
 if ! id "$SERVICE_USER" &>/dev/null; then
@@ -43,6 +58,12 @@ if ! id "$SERVICE_USER" &>/dev/null; then
 fi
 
 mkdir -p "$INSTALL_DIR/data"
+
+# ─── stop service before update ──────────────────────────────────────────────
+if systemctl is-active --quiet paperless-aissist 2>/dev/null; then
+  info "Stopping service..."
+  systemctl stop paperless-aissist
+fi
 
 # ─── download binary ─────────────────────────────────────────────────────────
 info "Downloading $BINARY..."
@@ -68,16 +89,22 @@ fi
 # ─── fix permissions ─────────────────────────────────────────────────────────
 chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
 
-# ─── enable & start service ──────────────────────────────────────────────────
+# ─── reload & restart service ────────────────────────────────────────────────
 systemctl daemon-reload
 systemctl enable paperless-aissist
+systemctl restart paperless-aissist
+success "Service restarted"
 
 echo ""
 echo "────────────────────────────────────────────────────"
-success "paperless-aissist $VERSION installed successfully!"
+if [[ -n "$CURRENT_VERSION" ]]; then
+  success "paperless-aissist updated $CURRENT_VERSION → $VERSION"
+else
+  success "paperless-aissist $VERSION installed successfully!"
+  echo ""
+  echo "  Edit the config:   nano $INSTALL_DIR/.env"
+fi
 echo ""
-echo "  1. Edit the config:   nano $INSTALL_DIR/.env"
-echo "  2. Start the service: systemctl start paperless-aissist"
-echo "  3. Check status:      systemctl status paperless-aissist"
-echo "  4. View logs:         journalctl -u paperless-aissist -f"
+echo "  Check status:      systemctl status paperless-aissist"
+echo "  View logs:         journalctl -u paperless-aissist -f"
 echo "────────────────────────────────────────────────────"
