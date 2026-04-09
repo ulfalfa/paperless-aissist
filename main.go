@@ -27,6 +27,16 @@ var version = "dev"
 func main() {
 	_ = godotenv.Load(".env")
 
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "paperless-aissist %s — AI metadata extraction for paperless-ngx\n\n", version)
+		fmt.Fprintf(os.Stderr, "Usage:\n")
+		fmt.Fprintf(os.Stderr, "  paperless-aissist --server              Start web server\n")
+		fmt.Fprintf(os.Stderr, "  paperless-aissist --pdf <file.pdf>      Analyze local PDF\n")
+		fmt.Fprintf(os.Stderr, "  paperless-aissist --id <N>              Fetch and analyze document\n")
+		fmt.Fprintf(os.Stderr, "  paperless-aissist --id <N> --dry-run    Analyze without writing\n")
+		fmt.Fprintf(os.Stderr, "  paperless-aissist --version             Print version\n")
+	}
+
 	serverCmd := flag.Bool("server", false, "Run HTTP server")
 	docID := flag.Int("id", 0, "Analyze a paperless-ngx document by ID")
 	dryRun := flag.Bool("dry-run", false, "Analyze without writing back to paperless-ngx")
@@ -53,13 +63,7 @@ func main() {
 	case *docID > 0:
 		runDocument(*docID, *dryRun)
 	default:
-		fmt.Printf("paperless-aissist %s — AI metadata extraction for paperless-ngx\n", version)
-		fmt.Println()
-		fmt.Println("Usage:")
-		fmt.Println("  paperless-aissist --server              Start web server")
-		fmt.Println("  paperless-aissist --pdf <file.pdf>      Analyze local PDF")
-		fmt.Println("  paperless-aissist --id <N>              Fetch and analyze document")
-		fmt.Println("  paperless-aissist --id <N> --dry-run    Analyze without writing")
+		flag.Usage()
 		os.Exit(1)
 	}
 }
