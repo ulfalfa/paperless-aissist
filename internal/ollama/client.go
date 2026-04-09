@@ -262,6 +262,77 @@ Here are the tags (id, name, document count):
 	return &analysis, nil
 }
 
+// ── /api/chat with tool calling ──────────────────────────────────────────────
+
+// ChatTool describes a function the LLM may call.
+type ChatTool struct {
+	Type     string           `json:"type"`
+	Function ChatToolFunction `json:"function"`
+}
+
+type ChatToolFunction struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Parameters  json.RawMessage `json:"parameters"`
+}
+
+// ChatMessage is a single turn in a /api/chat conversation.
+type ChatMessage struct {
+	Role      string     `json:"role"`                 // system | user | assistant | tool
+	Content   string     `json:"content"`
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+}
+
+// ToolCall is an LLM-requested tool invocation.
+type ToolCall struct {
+	Function ToolCallFunction `json:"function"`
+}
+
+type ToolCallFunction struct {
+	Name      string          `json:"name"`
+	Arguments json.RawMessage `json:"arguments"`
+}
+
+type chatRequest struct {
+	Model    string        `json:"model"`
+	Messages []ChatMessage `json:"messages"`
+	Tools    []ChatTool    `json:"tools,omitempty"`
+	Stream   bool          `json:"stream"`
+}
+
+type chatResponse struct {
+	Message ChatMessage `json:"message"`
+}
+
+// Chat sends messages to /api/chat and returns the assistant reply.
+// If the model requests tool calls they are returned in the message's ToolCalls field.
+func (c *Client) Chat(model string, messages []ChatMessage, tools []ChatTool) (*ChatMessage, error) {
+	if model == "" {
+		model = c.model
+	}
+	req := chatRequest{
+		Model:    model,
+		Messages: messages,
+		Tools:    tools,
+		Stream:   false,
+	}
+	data, _ := json.Marshal(req)
+	resp, err := c.http.Post(c.host+"/api/chat", "application/json", bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("ollama chat error %d: %s", resp.StatusCode, string(body))
+	}
+	var cr chatResponse
+	if err := json.NewDecoder(resp.Body).Decode(&cr); err != nil {
+		return nil, err
+	}
+	return &cr.Message, nil
+}
+
 // BuildPrompt fills in the prompt template placeholders.
 func BuildPrompt(template, docText string, hints types.Hints) string {
 	p := template

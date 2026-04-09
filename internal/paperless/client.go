@@ -235,6 +235,17 @@ func (c *Client) ListAllDocuments() ([]types.PaperlessDocument, error) {
 	return fetchAll[types.PaperlessDocument](c, "/api/documents/")
 }
 
+// CountDocuments returns the total number of documents in paperless-ngx.
+func (c *Client) CountDocuments() (int, error) {
+	var page struct {
+		Count int `json:"count"`
+	}
+	if err := c.get("/api/documents/?page_size=1", &page); err != nil {
+		return 0, err
+	}
+	return page.Count, nil
+}
+
 // DeleteTag deletes a tag (ungrouped documents remain)
 func (c *Client) DeleteTag(tagID int) error {
 	return c.delete(fmt.Sprintf("/api/tags/%d/", tagID))

@@ -862,8 +862,9 @@ func handleChatForm(w http.ResponseWriter, r *http.Request) {
 
 	cfg, _ := config.Load()
 	oc := ollama.New(cfg.OllamaHost, cfg.OllamaModel)
+	pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
 	logger.Info(fmt.Sprintf("RAG query [%s]: %s", chatModel, question))
-	result, err := rag.Global().Query(question, cfg.PaperlessURL, oc, cfg.EmbedModel, chatModel, history)
+	result, err := rag.Global().Query(question, cfg.PaperlessURL, oc, cfg.EmbedModel, chatModel, history, pc)
 	if err != nil {
 		logger.Error("RAG query failed", err.Error())
 		renderPartial(w, "chat_answer.html", map[string]any{"Error": err.Error()})
