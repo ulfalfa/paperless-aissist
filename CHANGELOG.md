@@ -1,3 +1,10 @@
+# [0.4.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.3.0...v0.4.0) (2026-04-09)
+
+
+### Features
+
+* **install:** skip update if already on latest, restart service on upgrade ([483d41d](https://gitlab.com/ulfalfa/paperless-aissist/commit/483d41dd110c86d6b15f4fef5ca3e21e0776d953))
+
 # [0.3.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.2.0...v0.3.0) (2026-04-09)
 
 
