@@ -101,11 +101,21 @@ type ConversationMessage struct {
 	Content string `json:"content"`
 }
 
+// ChatPerf holds performance metrics for a RAG query
+type ChatPerf struct {
+	TotalMs         float64 `json:"totalMs"`
+	GeneratedTokens int     `json:"generatedTokens"`
+	TokensPerSec    float64 `json:"tokensPerSec"`
+	ToolCalls       int     `json:"toolCalls"`
+	LLMRounds       int     `json:"llmRounds"`
+}
+
 // ChatResult is the response from a RAG query
 type ChatResult struct {
 	Answer  string                `json:"answer"`
 	Sources []ChatSource          `json:"sources"`
 	History []ConversationMessage `json:"history"`
+	Perf    *ChatPerf             `json:"perf,omitempty"`
 }
 
 // LogEntry is a single log record

@@ -1,6 +1,8 @@
 package web
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -9,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -27,6 +30,25 @@ import (
 )
 
 var authManager *auth.Manager
+
+// ── Chat job store ────────────────────────────────────────────────────────────
+
+type chatJob struct {
+	mu       sync.Mutex
+	status   string
+	done     bool
+	question string
+	model    string
+	data     map[string]any
+}
+
+var chatJobs sync.Map // jobID (string) → *chatJob
+
+func newJobID() string {
+	b := make([]byte, 8)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
 
 var (
 	tmplFunc template.FuncMap
@@ -103,6 +125,7 @@ func init() {
 		"templates/logs_partial.html",
 		"templates/index_status.html",
 		"templates/chat_answer.html",
+		"templates/chat_loading.html",
 	))
 }
 
@@ -120,6 +143,7 @@ func pageTmpl(page string) *template.Template {
 		"templates/logs_partial.html",
 		"templates/index_status.html",
 		"templates/chat_answer.html",
+		"templates/chat_loading.html",
 		"templates/"+page,
 	))
 }
@@ -181,6 +205,7 @@ func NewRouter(am *auth.Manager, paperlessToken string) http.Handler {
 	r.Post("/ui/settings", handleSettingsForm)
 	r.Post("/ui/prompt", handlePromptForm)
 	r.Post("/ui/chat", handleChatForm)
+	r.Get("/ui/chat/status/{jobID}", handleChatStatus)
 	r.Post("/ui/rag/index", handleIndexRun)
 	r.Get("/ui/rag/status", handleIndexStatus)
 
@@ -860,25 +885,76 @@ func handleChatForm(w http.ResponseWriter, r *http.Request) {
 		_ = json.Unmarshal([]byte(raw), &history)
 	}
 
+	jobID := newJobID()
+	job := &chatJob{
+		status:   "Starting…",
+		question: question,
+		model:    chatModel,
+	}
+	chatJobs.Store(jobID, job)
+
 	cfg, _ := config.Load()
-	oc := ollama.New(cfg.OllamaHost, cfg.OllamaModel)
-	pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
-	logger.Info(fmt.Sprintf("RAG query [%s]: %s", chatModel, question))
-	result, err := rag.Global().Query(question, cfg.PaperlessURL, oc, cfg.EmbedModel, chatModel, history, pc)
-	if err != nil {
-		logger.Error("RAG query failed", err.Error())
-		renderPartial(w, "chat_answer.html", map[string]any{"Error": err.Error()})
+	go func() {
+		oc := ollama.New(cfg.OllamaHost, cfg.OllamaModel)
+		pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
+		logger.Info(fmt.Sprintf("RAG query [%s]: %s", chatModel, question))
+
+		onStatus := func(s string) {
+			job.mu.Lock()
+			job.status = s
+			job.mu.Unlock()
+		}
+
+		result, err := rag.Global().Query(question, cfg.PaperlessURL, oc, cfg.EmbedModel, chatModel, history, pc, onStatus)
+
+		job.mu.Lock()
+		defer job.mu.Unlock()
+		job.done = true
+		if err != nil {
+			logger.Error("RAG query failed", err.Error())
+			job.data = map[string]any{"Error": err.Error()}
+		} else {
+			logger.Info(fmt.Sprintf("RAG query answered with %d sources", len(result.Sources)))
+			historyJSON, _ := json.Marshal(result.History)
+			job.data = map[string]any{
+				"Question":    question,
+				"Model":       chatModel,
+				"Result":      result,
+				"HistoryJSON": string(historyJSON),
+			}
+		}
+	}()
+
+	renderPartial(w, "chat_loading.html", map[string]any{
+		"JobID":    jobID,
+		"Question": question,
+		"Status":   "Starting…",
+	})
+}
+
+func handleChatStatus(w http.ResponseWriter, r *http.Request) {
+	jobID := chi.URLParam(r, "jobID")
+	val, ok := chatJobs.Load(jobID)
+	if !ok {
+		http.NotFound(w, r)
 		return
 	}
-	logger.Info(fmt.Sprintf("RAG query answered with %d sources", len(result.Sources)))
+	job := val.(*chatJob)
 
-	historyJSON, _ := json.Marshal(result.History)
-	renderPartial(w, "chat_answer.html", map[string]any{
-		"Question":    question,
-		"Model":       chatModel,
-		"Result":      result,
-		"HistoryJSON": string(historyJSON),
-	})
+	job.mu.Lock()
+	defer job.mu.Unlock()
+
+	if !job.done {
+		renderPartial(w, "chat_loading.html", map[string]any{
+			"JobID":    jobID,
+			"Question": job.question,
+			"Status":   job.status,
+		})
+		return
+	}
+
+	chatJobs.Delete(jobID)
+	renderPartial(w, "chat_answer.html", job.data)
 }
 
 func handleIndexRun(w http.ResponseWriter, r *http.Request) {

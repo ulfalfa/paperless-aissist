@@ -180,6 +180,16 @@ func (c *Client) ListDocumentsByTag(tagID int) ([]types.PaperlessDocument, error
 	return fetchAll[types.PaperlessDocument](c, path)
 }
 
+func (c *Client) ListDocumentsByType(typeID int) ([]types.PaperlessDocument, error) {
+	path := fmt.Sprintf("/api/documents/?document_type__id=%d&page_size=100", typeID)
+	return fetchAll[types.PaperlessDocument](c, path)
+}
+
+func (c *Client) ListDocumentsByCorrespondent(correspondentID int) ([]types.PaperlessDocument, error) {
+	path := fmt.Sprintf("/api/documents/?correspondent__id=%d&page_size=100", correspondentID)
+	return fetchAll[types.PaperlessDocument](c, path)
+}
+
 // ListTagsWithCount returns all tags with their document count
 func (c *Client) ListTagsWithCount() ([]types.TagWithCount, error) {
 	tags, err := c.ListTags()

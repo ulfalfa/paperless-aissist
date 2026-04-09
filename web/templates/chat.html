@@ -22,8 +22,7 @@
     <form id="chat-form"
           hx-post="/ui/chat"
           hx-target="#chat-messages"
-          hx-swap="beforeend"
-          hx-indicator="#chat-spinner">
+          hx-swap="beforeend">
       <input type="hidden" name="chatModel" id="chat-model-hidden" value="{{.Data.DefaultModel}}">
       <input type="hidden" name="history" id="chat-history" value="[]">
       <div style="display: flex; gap: 0.75rem; align-items: flex-end;">
@@ -37,10 +36,7 @@
             <option value="{{.}}" {{if eq . $.Data.DefaultModel}}selected{{end}}>{{.}}</option>
             {{end}}
           </select>
-          <button type="submit" style="margin: 0;">
-            <span id="chat-spinner" class="htmx-indicator spinner">⟳</span>
-            Send
-          </button>
+          <button type="submit" style="margin: 0;">Send</button>
         </div>
       </div>
     </form>
@@ -70,6 +66,14 @@
     margin-top: 0.4rem;
     border-bottom-left-radius: 0.25rem;
   }
+  /* Markdown content inside assistant bubble */
+  .chat-markdown > *:first-child { margin-top: 0; }
+  .chat-markdown > *:last-child { margin-bottom: 0; }
+  .chat-markdown p { margin: 0.4rem 0; }
+  .chat-markdown ul, .chat-markdown ol { margin: 0.4rem 0; padding-left: 1.4rem; }
+  .chat-markdown code { font-size: 0.85em; }
+  .chat-markdown pre { margin: 0.5rem 0; }
+  .chat-markdown h1, .chat-markdown h2, .chat-markdown h3 { margin: 0.6rem 0 0.3rem; font-size: 1em; font-weight: 700; }
 </style>
 
 <script>

@@ -9,6 +9,16 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.css">
   <script src="https://unpkg.com/htmx.org@2.0.3"></script>
   <script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>
+    // Render any unprocessed .chat-markdown elements after each HTMX swap
+    document.addEventListener('htmx:afterSettle', function() {
+      document.querySelectorAll('.chat-markdown:not([data-rendered])').forEach(function(el) {
+        el.innerHTML = marked.parse(el.textContent);
+        el.setAttribute('data-rendered', '1');
+      });
+    });
+  </script>
   <style>
     body { margin: 0; }
     .app-layout { display: flex; min-height: 100vh; }

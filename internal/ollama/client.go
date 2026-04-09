@@ -301,12 +301,23 @@ type chatRequest struct {
 }
 
 type chatResponse struct {
-	Message ChatMessage `json:"message"`
+	Message            ChatMessage `json:"message"`
+	EvalCount          int         `json:"eval_count"`
+	EvalDuration       int64       `json:"eval_duration"`
+	PromptEvalCount    int         `json:"prompt_eval_count"`
+	TotalDuration      int64       `json:"total_duration"`
 }
 
-// Chat sends messages to /api/chat and returns the assistant reply.
+// ChatRoundPerf holds per-round LLM performance metrics.
+type ChatRoundPerf struct {
+	GeneratedTokens int
+	TokensPerSec    float64
+	TotalMs         float64
+}
+
+// Chat sends messages to /api/chat and returns the assistant reply and perf metrics.
 // If the model requests tool calls they are returned in the message's ToolCalls field.
-func (c *Client) Chat(model string, messages []ChatMessage, tools []ChatTool) (*ChatMessage, error) {
+func (c *Client) Chat(model string, messages []ChatMessage, tools []ChatTool) (*ChatMessage, *ChatRoundPerf, error) {
 	if model == "" {
 		model = c.model
 	}
@@ -319,18 +330,25 @@ func (c *Client) Chat(model string, messages []ChatMessage, tools []ChatTool) (*
 	data, _ := json.Marshal(req)
 	resp, err := c.http.Post(c.host+"/api/chat", "application/json", bytes.NewReader(data))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("ollama chat error %d: %s", resp.StatusCode, string(body))
+		return nil, nil, fmt.Errorf("ollama chat error %d: %s", resp.StatusCode, string(body))
 	}
 	var cr chatResponse
 	if err := json.NewDecoder(resp.Body).Decode(&cr); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return &cr.Message, nil
+	perf := &ChatRoundPerf{
+		GeneratedTokens: cr.EvalCount,
+		TotalMs:         float64(cr.TotalDuration) / 1e6,
+	}
+	if cr.EvalDuration > 0 {
+		perf.TokensPerSec = float64(cr.EvalCount) / (float64(cr.EvalDuration) / 1e9)
+	}
+	return &cr.Message, perf, nil
 }
 
 // BuildPrompt fills in the prompt template placeholders.

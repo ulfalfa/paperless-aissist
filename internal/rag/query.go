@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ulf/paperless-aissist/internal/ollama"
 	"github.com/ulf/paperless-aissist/internal/paperless"
+	"github.com/ulf/paperless-aissist/internal/tools"
 	"github.com/ulf/paperless-aissist/internal/types"
 )
 
@@ -22,12 +24,20 @@ func (idx *Indexer) Query(
 	embedModel, chatModel string,
 	history []types.ConversationMessage,
 	pc *paperless.Client,
+	onStatus func(string),
 ) (*types.ChatResult, error) {
+
+	status := func(s string) {
+		if onStatus != nil {
+			onStatus(s)
+		}
+	}
 
 	// ── 1. Vector search for document context ────────────────────────────────
 	var ragContext string
 	var sources []types.ChatSource
 
+	status("Searching document index...")
 	emb, err := oc.Embed(embedModel, question)
 	if err == nil {
 		ctx := context.Background()
@@ -66,14 +76,22 @@ func (idx *Indexer) Query(
 	messages = append(messages, ollama.ChatMessage{Role: "user", Content: question})
 
 	// ── 3. Tool-call loop ─────────────────────────────────────────────────────
-	tools := buildTools()
+	ollamaTools := buildTools()
 	const maxRounds = 5
 	var answer string
+	start := time.Now()
+	perf := &types.ChatPerf{}
 
 	for round := 0; round < maxRounds; round++ {
-		msg, err := oc.Chat(chatModel, messages, tools)
+		status("Thinking…")
+		msg, rp, err := oc.Chat(chatModel, messages, ollamaTools)
 		if err != nil {
 			return nil, fmt.Errorf("chat: %w", err)
+		}
+		perf.LLMRounds++
+		if rp != nil {
+			perf.GeneratedTokens += rp.GeneratedTokens
+			perf.TokensPerSec = rp.TokensPerSec // use last round's rate
 		}
 
 		messages = append(messages, *msg)
@@ -85,13 +103,23 @@ func (idx *Indexer) Query(
 
 		// Execute each tool call and append results
 		for _, tc := range msg.ToolCalls {
-			result := executeTool(tc.Function.Name, tc.Function.Arguments, pc)
+			status(fmt.Sprintf("Calling tool: %s…", tc.Function.Name))
+			tr, err := tools.Execute(tc.Function.Name, tc.Function.Arguments, pc, paperlessBaseURL)
+			text := ""
+			if err != nil {
+				text = fmt.Sprintf("error: %v", err)
+			} else {
+				text = tr.Text
+				sources = appendUniqueSources(sources, tr.Sources)
+			}
+			perf.ToolCalls++
 			messages = append(messages, ollama.ChatMessage{
 				Role:    "tool",
-				Content: result,
+				Content: text,
 			})
 		}
 	}
+	perf.TotalMs = float64(time.Since(start).Milliseconds())
 
 	if answer == "" {
 		answer = "Could not generate an answer."
@@ -106,6 +134,7 @@ func (idx *Indexer) Query(
 		Answer:  answer,
 		Sources: sources,
 		History: updatedHistory,
+		Perf:    perf,
 	}, nil
 }
 
@@ -174,94 +203,48 @@ func buildTools() []ollama.ChatTool {
 				}`),
 			},
 		},
+		{
+			Type: "function",
+			Function: ollama.ChatToolFunction{
+				Name:        "list_documents_by_type",
+				Description: "List all documents with a given document type (e.g. 'Zeugnis', 'Rechnung'). Use list_document_types first if you need to know available types.",
+				Parameters: json.RawMessage(`{
+					"type": "object",
+					"properties": {
+						"type_name": {"type": "string", "description": "Document type name (case-insensitive)"}
+					},
+					"required": ["type_name"]
+				}`),
+			},
+		},
+		{
+			Type: "function",
+			Function: ollama.ChatToolFunction{
+				Name:        "list_documents_by_correspondent",
+				Description: "List all documents from a specific correspondent (sender/recipient). Use list_correspondents first if you need to know available correspondents.",
+				Parameters: json.RawMessage(`{
+					"type": "object",
+					"properties": {
+						"correspondent_name": {"type": "string", "description": "Correspondent name (case-insensitive)"}
+					},
+					"required": ["correspondent_name"]
+				}`),
+			},
+		},
 	}
 }
 
-// executeTool dispatches a tool call to the paperless client and returns the result as a string.
-func executeTool(name string, args json.RawMessage, pc *paperless.Client) string {
-	switch name {
-	case "list_tags":
-		tags, err := pc.ListTagsWithCount()
-		if err != nil {
-			return fmt.Sprintf("error: %v", err)
-		}
-		var parts []string
-		for _, t := range tags {
-			parts = append(parts, fmt.Sprintf("%s (ID:%d, %d docs)", t.Name, t.ID, t.Count))
-		}
-		return fmt.Sprintf("%d tags: %s", len(tags), strings.Join(parts, ", "))
-
-	case "list_correspondents":
-		items, err := pc.ListCorrespondents()
-		if err != nil {
-			return fmt.Sprintf("error: %v", err)
-		}
-		names := make([]string, len(items))
-		for i, c := range items {
-			names[i] = c.Name
-		}
-		return fmt.Sprintf("%d correspondents: %s", len(items), strings.Join(names, ", "))
-
-	case "list_document_types":
-		items, err := pc.ListDocumentTypes()
-		if err != nil {
-			return fmt.Sprintf("error: %v", err)
-		}
-		names := make([]string, len(items))
-		for i, dt := range items {
-			names[i] = dt.Name
-		}
-		return fmt.Sprintf("%d document types: %s", len(items), strings.Join(names, ", "))
-
-	case "count_documents":
-		n, err := pc.CountDocuments()
-		if err != nil {
-			return fmt.Sprintf("error: %v", err)
-		}
-		return fmt.Sprintf("%d documents", n)
-
-	case "search_documents":
-		var p struct {
-			Query    string `json:"query"`
-			PageSize int    `json:"page_size"`
-		}
-		if err := json.Unmarshal(args, &p); err != nil {
-			return fmt.Sprintf("error parsing args: %v", err)
-		}
-		if p.PageSize <= 0 {
-			p.PageSize = 10
-		}
-		docs, err := pc.SearchDocuments(p.Query, p.PageSize)
-		if err != nil {
-			return fmt.Sprintf("error: %v", err)
-		}
-		if len(docs) == 0 {
-			return "no documents found"
-		}
-		var parts []string
-		for _, d := range docs {
-			parts = append(parts, fmt.Sprintf("ID:%d %q", d.ID, d.Title))
-		}
-		return fmt.Sprintf("%d results: %s", len(docs), strings.Join(parts, "; "))
-
-	case "get_document":
-		var p struct {
-			ID int `json:"id"`
-		}
-		if err := json.Unmarshal(args, &p); err != nil {
-			return fmt.Sprintf("error parsing args: %v", err)
-		}
-		doc, err := pc.GetDocument(p.ID)
-		if err != nil {
-			return fmt.Sprintf("error: %v", err)
-		}
-		preview := doc.Content
-		if len(preview) > 500 {
-			preview = preview[:500] + "..."
-		}
-		return fmt.Sprintf("ID:%d Title:%q Created:%s\n%s", doc.ID, doc.Title, doc.Created, preview)
-
-	default:
-		return fmt.Sprintf("unknown tool: %s", name)
+// appendUniqueSources adds sources not already present (by ID) to the slice.
+func appendUniqueSources(existing, extra []types.ChatSource) []types.ChatSource {
+	seen := make(map[int]bool, len(existing))
+	for _, s := range existing {
+		seen[s.ID] = true
 	}
+	for _, s := range extra {
+		if !seen[s.ID] {
+			existing = append(existing, s)
+			seen[s.ID] = true
+		}
+	}
+	return existing
 }

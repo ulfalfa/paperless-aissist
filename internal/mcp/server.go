@@ -11,6 +11,7 @@ import (
 	"github.com/ulf/paperless-aissist/internal/config"
 	"github.com/ulf/paperless-aissist/internal/ollama"
 	"github.com/ulf/paperless-aissist/internal/paperless"
+	"github.com/ulf/paperless-aissist/internal/tools"
 	"github.com/ulf/paperless-aissist/internal/types"
 	"github.com/ulf/paperless-aissist/internal/validate"
 )
@@ -18,43 +19,43 @@ import (
 func NewHTTPHandler() http.Handler {
 	s := server.NewMCPServer("paperless-aissist", "0.1.0")
 
+	// helper: run a tool via the shared tools package and return JSON
+	runTool := func(name string, args json.RawMessage) (*mcpsdk.CallToolResult, error) {
+		cfg, _ := config.Load()
+		pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
+		res, err := tools.Execute(name, args, pc, cfg.PaperlessURL)
+		if err != nil {
+			return mcpsdk.NewToolResultError(err.Error()), nil
+		}
+		return jsonResult(res.Data)
+	}
+
 	// list_tags
 	s.AddTool(mcpsdk.NewTool("list_tags",
 		mcpsdk.WithDescription("List all tags in paperless-ngx"),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		cfg, _ := config.Load()
-		pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
-		tags, err := pc.ListTags()
-		if err != nil {
-			return mcpsdk.NewToolResultError(err.Error()), nil
-		}
-		return jsonResult(tags)
+		return runTool("list_tags", nil)
 	})
 
 	// list_correspondents
 	s.AddTool(mcpsdk.NewTool("list_correspondents",
 		mcpsdk.WithDescription("List all correspondents in paperless-ngx"),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		cfg, _ := config.Load()
-		pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
-		items, err := pc.ListCorrespondents()
-		if err != nil {
-			return mcpsdk.NewToolResultError(err.Error()), nil
-		}
-		return jsonResult(items)
+		return runTool("list_correspondents", nil)
 	})
 
 	// list_document_types
 	s.AddTool(mcpsdk.NewTool("list_document_types",
 		mcpsdk.WithDescription("List all document types in paperless-ngx"),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		cfg, _ := config.Load()
-		pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
-		items, err := pc.ListDocumentTypes()
-		if err != nil {
-			return mcpsdk.NewToolResultError(err.Error()), nil
-		}
-		return jsonResult(items)
+		return runTool("list_document_types", nil)
+	})
+
+	// count_documents
+	s.AddTool(mcpsdk.NewTool("count_documents",
+		mcpsdk.WithDescription("Return the total number of documents in the archive"),
+	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		return runTool("count_documents", nil)
 	})
 
 	// get_document
@@ -63,14 +64,8 @@ func NewHTTPHandler() http.Handler {
 		mcpsdk.WithNumber("id", mcpsdk.Required(), mcpsdk.Description("Document ID")),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		args := req.GetArguments()
-		id := int(args["id"].(float64))
-		cfg, _ := config.Load()
-		pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
-		doc, err := pc.GetDocument(id)
-		if err != nil {
-			return mcpsdk.NewToolResultError(err.Error()), nil
-		}
-		return jsonResult(doc)
+		b, _ := json.Marshal(map[string]any{"id": args["id"]})
+		return runTool("get_document", b)
 	})
 
 	// search_documents
@@ -80,18 +75,28 @@ func NewHTTPHandler() http.Handler {
 		mcpsdk.WithNumber("page_size", mcpsdk.Description("Max results (default 10)")),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		args := req.GetArguments()
-		query := args["query"].(string)
-		pageSize := 10
-		if ps, ok := args["page_size"].(float64); ok {
-			pageSize = int(ps)
-		}
-		cfg, _ := config.Load()
-		pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
-		docs, err := pc.SearchDocuments(query, pageSize)
-		if err != nil {
-			return mcpsdk.NewToolResultError(err.Error()), nil
-		}
-		return jsonResult(docs)
+		b, _ := json.Marshal(map[string]any{"query": args["query"], "page_size": args["page_size"]})
+		return runTool("search_documents", b)
+	})
+
+	// list_documents_by_type
+	s.AddTool(mcpsdk.NewTool("list_documents_by_type",
+		mcpsdk.WithDescription("List all documents with a given document type (e.g. 'Zeugnis', 'Rechnung')"),
+		mcpsdk.WithString("type_name", mcpsdk.Required(), mcpsdk.Description("Document type name (case-insensitive)")),
+	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		args := req.GetArguments()
+		b, _ := json.Marshal(map[string]any{"type_name": args["type_name"]})
+		return runTool("list_documents_by_type", b)
+	})
+
+	// list_documents_by_correspondent
+	s.AddTool(mcpsdk.NewTool("list_documents_by_correspondent",
+		mcpsdk.WithDescription("List all documents from a specific correspondent"),
+		mcpsdk.WithString("correspondent_name", mcpsdk.Required(), mcpsdk.Description("Correspondent name (case-insensitive)")),
+	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		args := req.GetArguments()
+		b, _ := json.Marshal(map[string]any{"correspondent_name": args["correspondent_name"]})
+		return runTool("list_documents_by_correspondent", b)
 	})
 
 	// analyze_document
