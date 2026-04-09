@@ -1,3 +1,10 @@
+## [0.4.3](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.4.2...v0.4.3) (2026-04-09)
+
+
+### Bug Fixes
+
+* **ci:** use two-rule pattern to skip release job on chore commits ([9ad7714](https://gitlab.com/ulfalfa/paperless-aissist/commit/9ad7714da98554503178ea3e1608ef719ed2f8fc))
+
 ## [0.4.2](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.4.1...v0.4.2) (2026-04-09)
 
 
