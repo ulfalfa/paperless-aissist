@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	assets "github.com/ulf/paperless-aissist/web"
+	"github.com/ulf/paperless-aissist/internal/auth"
 	"github.com/ulf/paperless-aissist/internal/config"
 	"github.com/ulf/paperless-aissist/internal/logger"
 	"github.com/ulf/paperless-aissist/internal/mcp"
@@ -24,6 +25,8 @@ import (
 	"github.com/ulf/paperless-aissist/internal/types"
 	"github.com/ulf/paperless-aissist/internal/validate"
 )
+
+var authManager *auth.Manager
 
 var (
 	tmplFunc template.FuncMap
@@ -121,15 +124,26 @@ func pageTmpl(page string) *template.Template {
 	))
 }
 
-func NewRouter() http.Handler {
+func NewRouter(am *auth.Manager, paperlessToken string) http.Handler {
+	authManager = am
+
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(am.Middleware)
 
-	// MCP endpoint
+	// Auth routes (public)
+	r.Get("/setup", handleSetupPage)
+	r.Post("/setup", handleSetupForm)
+	r.Get("/login", handleLoginPage)
+	r.Post("/login", handleLoginForm)
+	r.Post("/logout", handleLogout)
+
+	// MCP endpoint — protected by paperless API token, not session
 	mcpHandler := mcp.NewHTTPHandler()
-	r.Handle("/mcp", mcpHandler)
-	r.Handle("/mcp/*", mcpHandler)
+	tokenGuard := auth.TokenMiddleware(paperlessToken)
+	r.With(tokenGuard).Handle("/mcp", mcpHandler)
+	r.With(tokenGuard).Handle("/mcp/*", mcpHandler)
 
 	// API
 	r.Get("/api/config", handleGetConfig)
@@ -899,4 +913,77 @@ func namesOf(items []types.PaperlessItem) []string {
 		names[i] = item.Name
 	}
 	return names
+}
+
+// ── Auth handlers ────────────────────────────────────────────────────────────
+
+func handleSetupPage(w http.ResponseWriter, r *http.Request) {
+	if authManager.IsSetup() {
+		http.Redirect(w, r, "/login", http.StatusFound)
+		return
+	}
+	renderAuth(w, "setup.html", map[string]any{})
+}
+
+func handleSetupForm(w http.ResponseWriter, r *http.Request) {
+	if authManager.IsSetup() {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+	username := strings.TrimSpace(r.FormValue("username"))
+	password := r.FormValue("password")
+	password2 := r.FormValue("password2")
+
+	if password != password2 {
+		renderAuth(w, "setup.html", map[string]any{"Error": "Passwords do not match.", "Username": username})
+		return
+	}
+	if err := authManager.Setup(username, password); err != nil {
+		renderAuth(w, "setup.html", map[string]any{"Error": err.Error(), "Username": username})
+		return
+	}
+	token, _ := authManager.Login(username, password)
+	authManager.SetCookie(w, token)
+	http.Redirect(w, r, "/", http.StatusFound)
+}
+
+func handleLoginPage(w http.ResponseWriter, r *http.Request) {
+	if !authManager.IsSetup() {
+		http.Redirect(w, r, "/setup", http.StatusFound)
+		return
+	}
+	renderAuth(w, "login.html", map[string]any{})
+}
+
+func handleLoginForm(w http.ResponseWriter, r *http.Request) {
+	username := strings.TrimSpace(r.FormValue("username"))
+	password := r.FormValue("password")
+
+	token, err := authManager.Login(username, password)
+	if err != nil {
+		renderAuth(w, "login.html", map[string]any{"Error": "Invalid username or password.", "Username": username})
+		return
+	}
+	authManager.SetCookie(w, token)
+	http.Redirect(w, r, "/", http.StatusFound)
+}
+
+func handleLogout(w http.ResponseWriter, r *http.Request) {
+	token := authManager.TokenFromRequest(r)
+	authManager.Logout(token)
+	authManager.ClearCookie(w)
+	http.Redirect(w, r, "/login", http.StatusFound)
+}
+
+// renderAuth renders standalone auth pages (no layout, no nav).
+func renderAuth(w http.ResponseWriter, page string, data map[string]any) {
+	t, err := template.ParseFS(assets.FS, "templates/"+page)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := t.Execute(w, data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }

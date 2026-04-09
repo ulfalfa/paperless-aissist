@@ -1,6 +1,6 @@
 module github.com/ulf/paperless-aissist
 
-go 1.24.1
+go 1.25.0
 
 require (
 	github.com/go-chi/chi/v5 v5.2.5
@@ -15,4 +15,5 @@ require (
 	github.com/philippgille/chromem-go v0.7.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
+	golang.org/x/crypto v0.49.0 // indirect
 )
