@@ -1,3 +1,10 @@
+# [0.5.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.4.4...v0.5.0) (2026-04-09)
+
+
+### Features
+
+* add authentication with setup, login, and MCP token guard ([40f7a8c](https://gitlab.com/ulfalfa/paperless-aissist/commit/40f7a8c44848e766e8fa4013c81b83b5d7287e0b))
+
 ## [0.4.4](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.4.3...v0.4.4) (2026-04-09)
 
 
