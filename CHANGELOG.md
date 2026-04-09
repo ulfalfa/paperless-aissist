@@ -1,3 +1,11 @@
+## [0.4.2](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.4.1...v0.4.2) (2026-04-09)
+
+
+### Bug Fixes
+
+* **ci:** remove [skip ci] from release commit so tag pipeline runs build job ([4778d13](https://gitlab.com/ulfalfa/paperless-aissist/commit/4778d13dff36851a0e06d802c04df1218f00274f))
+* trigger release build ([15ca2d2](https://gitlab.com/ulfalfa/paperless-aissist/commit/15ca2d2dde6af1be5c5aff6bc95307944600ec9f))
+
 ## [0.4.1](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.4.0...v0.4.1) (2026-04-09)
 
 
