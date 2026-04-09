@@ -1,3 +1,10 @@
+# [0.8.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.7.0...v0.8.0) (2026-04-09)
+
+
+### Features
+
+* show version in sidebar, keep models loaded in memory ([a375deb](https://gitlab.com/ulfalfa/paperless-aissist/commit/a375deb397f8c167ef43993b064810f326effa86))
+
 # [0.7.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.6.0...v0.7.0) (2026-04-09)
 
 
