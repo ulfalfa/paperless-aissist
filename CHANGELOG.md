@@ -1,3 +1,10 @@
+# [0.6.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.5.1...v0.6.0) (2026-04-09)
+
+
+### Features
+
+* **chat:** tool calling via /api/chat — LLM can query paperless live data ([0bb1b4f](https://gitlab.com/ulfalfa/paperless-aissist/commit/0bb1b4f8302a692b2feed330c5f14dac20266184))
+
 ## [0.5.1](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.5.0...v0.5.1) (2026-04-09)
 
 
