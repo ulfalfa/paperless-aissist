@@ -98,6 +98,13 @@
         Logs
       </a>
     </nav>
+    <div style="padding: 0.75rem 1rem; border-top: 1px solid rgba(255,255,255,0.15);">
+      <form method="POST" action="/logout" style="margin:0">
+        <button type="submit" style="width:100%; background:transparent; border:1px solid rgba(255,255,255,0.25); color:rgba(255,255,255,0.6); font-size:0.82rem; padding:0.4rem 0.75rem; cursor:pointer; border-radius:4px;">
+          Sign out
+        </button>
+      </form>
+    </div>
   </aside>
   <main class="main-content">
     {{template "content" .}}

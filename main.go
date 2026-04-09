@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/joho/godotenv"
+	"github.com/ulf/paperless-aissist/internal/auth"
 	"github.com/ulf/paperless-aissist/internal/config"
 	"github.com/ulf/paperless-aissist/internal/logger"
 	"github.com/ulf/paperless-aissist/internal/ollama"
@@ -79,9 +80,13 @@ func runServer() {
 	if err := rag.Init(cfg.IndexPath); err != nil {
 		log.Fatal("rag init:", err)
 	}
+	am, err := auth.New(cfg.IndexPath + "/credentials.json")
+	if err != nil {
+		log.Fatal("auth init:", err)
+	}
 	logger.Info("Server starting", "port "+cfg.Port)
 	log.Printf("paperless-aissist listening on :%s", cfg.Port)
-	if err := http.ListenAndServe(":"+cfg.Port, web.NewRouter()); err != nil {
+	if err := http.ListenAndServe(":"+cfg.Port, web.NewRouter(am, cfg.PaperlessToken)); err != nil {
 		log.Fatal(err)
 	}
 }

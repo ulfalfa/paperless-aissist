@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login — paperless-aissist</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <style>
+    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    main { width: 100%; max-width: 400px; padding: 2rem; }
+    h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+    .subtitle { color: var(--pico-muted-color); margin-bottom: 2rem; font-size: 0.9rem; }
+    .error { color: var(--pico-del-color); margin-bottom: 1rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>paperless-aissist</h1>
+    <p class="subtitle">Sign in to continue.</p>
+
+    {{if .Error}}
+    <p class="error">{{.Error}}</p>
+    {{end}}
+
+    <form method="POST" action="/login">
+      <label>
+        Username
+        <input type="text" name="username" value="{{.Username}}" required autofocus autocomplete="username">
+      </label>
+      <label>
+        Password
+        <input type="password" name="password" required autocomplete="current-password">
+      </label>
+      <button type="submit">Sign in</button>
+    </form>
+  </main>
+</body>
+</html>
