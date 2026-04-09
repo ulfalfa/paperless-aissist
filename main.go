@@ -86,6 +86,7 @@ func runServer() {
 	}
 	logger.Info("Server starting", "port "+cfg.Port)
 	log.Printf("paperless-aissist listening on :%s", cfg.Port)
+	web.SetVersion(version)
 	if err := http.ListenAndServe(":"+cfg.Port, web.NewRouter(am, cfg.PaperlessToken)); err != nil {
 		log.Fatal(err)
 	}

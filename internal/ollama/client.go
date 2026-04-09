@@ -104,8 +104,9 @@ func buildPerf(gen generateResponse) *types.OllamaPerf {
 }
 
 type embedRequest struct {
-	Model string   `json:"model"`
-	Input []string `json:"input"`
+	Model     string   `json:"model"`
+	Input     []string `json:"input"`
+	KeepAlive int      `json:"keep_alive"` // -1 = keep loaded indefinitely
 }
 
 type embedResponse struct {
@@ -114,7 +115,7 @@ type embedResponse struct {
 
 // Embed calls /api/embed and returns the embedding vector for one text.
 func (c *Client) Embed(model, text string) ([]float32, error) {
-	req := embedRequest{Model: model, Input: []string{text}}
+	req := embedRequest{Model: model, Input: []string{text}, KeepAlive: -1}
 	data, _ := json.Marshal(req)
 	resp, err := c.http.Post(c.host+"/api/embed", "application/json", bytes.NewReader(data))
 	if err != nil {
@@ -294,10 +295,11 @@ type ToolCallFunction struct {
 }
 
 type chatRequest struct {
-	Model    string        `json:"model"`
-	Messages []ChatMessage `json:"messages"`
-	Tools    []ChatTool    `json:"tools,omitempty"`
-	Stream   bool          `json:"stream"`
+	Model     string        `json:"model"`
+	Messages  []ChatMessage `json:"messages"`
+	Tools     []ChatTool    `json:"tools,omitempty"`
+	Stream    bool          `json:"stream"`
+	KeepAlive int           `json:"keep_alive"` // -1 = keep loaded indefinitely
 }
 
 type chatResponse struct {

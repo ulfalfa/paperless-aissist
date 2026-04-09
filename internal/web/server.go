@@ -30,6 +30,9 @@ import (
 )
 
 var authManager *auth.Manager
+var appVersion = "dev"
+
+func SetVersion(v string) { appVersion = v }
 
 // ── Chat job store ────────────────────────────────────────────────────────────
 
@@ -219,9 +222,11 @@ type pageData struct {
 	Data       any
 	Flash      string
 	Error      string
+	Version    string
 }
 
 func render(w http.ResponseWriter, page string, d pageData) {
+	d.Version = appVersion
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := pageTmpl(page).ExecuteTemplate(w, "layout.html", d); err != nil {
 		http.Error(w, err.Error(), 500)
