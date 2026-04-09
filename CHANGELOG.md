@@ -1,3 +1,10 @@
+# [0.7.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.6.0...v0.7.0) (2026-04-09)
+
+
+### Features
+
+* live chat status, markdown rendering, perf metrics, and unified tools ([695a0f0](https://gitlab.com/ulfalfa/paperless-aissist/commit/695a0f05f6c7ed0ca6d71a1f6fb431616c516ea8))
+
 # [0.6.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.5.1...v0.6.0) (2026-04-09)
 
 
