@@ -1,3 +1,10 @@
+## [0.5.1](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.5.0...v0.5.1) (2026-04-09)
+
+
+### Bug Fixes
+
+* **ci:** upgrade Go image to 1.25 (required by golang.org/x/crypto) ([e026a2c](https://gitlab.com/ulfalfa/paperless-aissist/commit/e026a2c221683cf6f9c94341b63c0401404370bb))
+
 # [0.5.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.4.4...v0.5.0) (2026-04-09)
 
 
