@@ -31,7 +31,13 @@ func main() {
 	docID := flag.Int("id", 0, "Analyze a paperless-ngx document by ID")
 	dryRun := flag.Bool("dry-run", false, "Analyze without writing back to paperless-ngx")
 	pdfPath := flag.String("pdf", "", "Analyze a local PDF file (prints JSON, no write)")
+	versionCmd := flag.Bool("version", false, "Print version and exit")
 	flag.Parse()
+
+	if *versionCmd {
+		fmt.Println(version)
+		return
+	}
 
 	// If no flag given but a positional argument exists, treat as pdf path
 	if *pdfPath == "" && flag.NArg() > 0 {
