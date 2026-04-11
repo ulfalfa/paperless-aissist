@@ -1,3 +1,10 @@
+# [0.9.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.8.0...v0.9.0) (2026-04-11)
+
+
+### Features
+
+* webhook endpoint, prompt logging UI, chat improvements, remove tag cleanup ([22fc60f](https://gitlab.com/ulfalfa/paperless-aissist/commit/22fc60f5a9937972ec734ff72fa29685548f6080))
+
 # [0.8.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.7.0...v0.8.0) (2026-04-09)
 
 
