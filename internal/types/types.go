@@ -14,31 +14,9 @@ type PaperlessDocument struct {
 
 // PaperlessItem is a generic named item (tag, correspondent, document type)
 type PaperlessItem struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-}
-
-// TagWithCount is a tag and its document count
-type TagWithCount struct {
-	ID    int    `json:"id"`
-	Name  string `json:"name"`
-	Count int    `json:"count"`
-}
-
-// TagCleanupSuggestion is a cleanup action recommended for a tag
-type TagCleanupSuggestion struct {
-	TagID       int      `json:"tagId"`
-	TagName     string   `json:"tagName"`
-	Count       int      `json:"count"`
-	Action      string   `json:"action"`        // "merge", "delete", "keep"
-	MergeInto   *string  `json:"mergeInto"`    // target tag name if merging
-	Reason      string   `json:"reason"`
-}
-
-// TagCleanupAnalysis is the structured output from Ollama tag analysis
-type TagCleanupAnalysis struct {
-	Suggestions []TagCleanupSuggestion `json:"suggestions"`
-	Summary     string                 `json:"summary"`
+	ID            int    `json:"id"`
+	Name          string `json:"name"`
+	DocumentCount int    `json:"document_count"`
 }
 
 // Hints provides existing metadata context for the AI prompt
@@ -152,4 +130,5 @@ type AppConfig struct {
 	StrictMetadata bool   `json:"strictMetadata"`
 	EmbedModel     string `json:"embedModel"`
 	IndexPath      string `json:"indexPath"`
+	LogPrompts     bool   `json:"logPrompts"`
 }

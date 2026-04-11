@@ -190,56 +190,6 @@ func (c *Client) ListDocumentsByCorrespondent(correspondentID int) ([]types.Pape
 	return fetchAll[types.PaperlessDocument](c, path)
 }
 
-// ListTagsWithCount returns all tags with their document count
-func (c *Client) ListTagsWithCount() ([]types.TagWithCount, error) {
-	tags, err := c.ListTags()
-	if err != nil {
-		return nil, err
-	}
-	var result []types.TagWithCount
-	for _, tag := range tags {
-		docs, err := c.ListDocumentsByTag(tag.ID)
-		if err != nil {
-			continue
-		}
-		result = append(result, types.TagWithCount{
-			ID:    tag.ID,
-			Name:  tag.Name,
-			Count: len(docs),
-		})
-	}
-	return result, nil
-}
-
-// MergeTags merges source tag into target tag and removes source tag
-func (c *Client) MergeTags(sourceID, targetID int) error {
-	docs, err := c.ListDocumentsByTag(sourceID)
-	if err != nil {
-		return err
-	}
-	for _, doc := range docs {
-		// Remove source tag, add target tag
-		newTags := []int{targetID}
-		for _, tag := range doc.Tags {
-			if tag != sourceID && tag != targetID {
-				newTags = append(newTags, tag)
-			}
-		}
-		update := types.DocumentUpdate{
-			Title:         doc.Title,
-			Created:       doc.Created,
-			Correspondent: doc.Correspondent,
-			DocumentType:  doc.DocumentType,
-			Tags:          newTags,
-		}
-		if err := c.UpdateDocument(doc.ID, update); err != nil {
-			return err
-		}
-	}
-	// Delete the empty source tag
-	return c.delete(fmt.Sprintf("/api/tags/%d/", sourceID))
-}
-
 // ListAllDocuments returns every document from paperless-ngx (all pages).
 func (c *Client) ListAllDocuments() ([]types.PaperlessDocument, error) {
 	return fetchAll[types.PaperlessDocument](c, "/api/documents/")
@@ -254,11 +204,6 @@ func (c *Client) CountDocuments() (int, error) {
 		return 0, err
 	}
 	return page.Count, nil
-}
-
-// DeleteTag deletes a tag (ungrouped documents remain)
-func (c *Client) DeleteTag(tagID int) error {
-	return c.delete(fmt.Sprintf("/api/tags/%d/", tagID))
 }
 
 // ResolveOrCreate finds an item by name (case-insensitive) or creates it if missing.

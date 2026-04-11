@@ -27,10 +27,12 @@ func New(host, model string) *Client {
 }
 
 type generateRequest struct {
-	Model  string          `json:"model"`
-	Prompt string          `json:"prompt"`
-	Format json.RawMessage `json:"format,omitempty"`
-	Stream bool            `json:"stream"`
+	Model     string          `json:"model"`
+	Prompt    string          `json:"prompt"`
+	Format    json.RawMessage `json:"format,omitempty"`
+	Stream    bool            `json:"stream"`
+	KeepAlive int             `json:"keep_alive"`             // -1 = keep loaded indefinitely
+	Options   map[string]any  `json:"options,omitempty"`
 }
 
 type generateResponse struct {
@@ -57,10 +59,11 @@ func (c *Client) Analyze(prompt string) (*types.AnalysisResult, *types.OllamaPer
 
 func (c *Client) generate(prompt string) (*types.AnalysisResult, *types.OllamaPerf, error) {
 	req := generateRequest{
-		Model:  c.model,
-		Prompt: prompt,
-		Format: json.RawMessage(`"json"`),
-		Stream: false,
+		Model:     c.model,
+		Prompt:    prompt,
+		Format:    json.RawMessage(`"json"`),
+		Stream:    false,
+		KeepAlive: -1,
 	}
 	data, err := json.Marshal(req)
 	if err != nil {
@@ -167,9 +170,10 @@ func (c *Client) Generate(model, prompt string) (string, error) {
 		model = c.model
 	}
 	req := generateRequest{
-		Model:  model,
-		Prompt: prompt,
-		Stream: false,
+		Model:     model,
+		Prompt:    prompt,
+		Stream:    false,
+		KeepAlive: -1,
 	}
 	data, _ := json.Marshal(req)
 	resp, err := c.http.Post(c.host+"/api/generate", "application/json", bytes.NewReader(data))
@@ -186,81 +190,6 @@ func (c *Client) Generate(model, prompt string) (string, error) {
 		return "", err
 	}
 	return gen.Response, nil
-}
-
-// tagAnalysisSchema is a JSON Schema that enforces the structure of the tag analysis response.
-// Ollama 0.5+ uses this to constrain token sampling, preventing type mismatches.
-var tagAnalysisSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "suggestions": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "tagId":     {"type": "integer"},
-          "tagName":   {"type": "string"},
-          "count":     {"type": "integer"},
-          "action":    {"type": "string", "enum": ["keep", "merge", "delete"]},
-          "mergeInto": {"type": "string"},
-          "reason":    {"type": "string"}
-        },
-        "required": ["tagId", "tagName", "count", "action", "reason"]
-      }
-    },
-    "summary": {"type": "string"}
-  },
-  "required": ["suggestions", "summary"]
-}`)
-
-// AnalyzeTags sends tags to Ollama for cleanup analysis
-func (c *Client) AnalyzeTags(tags []types.TagWithCount) (*types.TagCleanupAnalysis, error) {
-	analysis, err := c.analyzeTagsOnce(tags)
-	if err != nil {
-		analysis, err = c.analyzeTagsOnce(tags)
-	}
-	return analysis, err
-}
-
-func (c *Client) analyzeTagsOnce(tags []types.TagWithCount) (*types.TagCleanupAnalysis, error) {
-	tagsJson, _ := json.MarshalIndent(tags, "", "  ")
-	prompt := fmt.Sprintf(`You are a document tagging expert. Analyze these tags from a paperless-ngx document management system and suggest cleanups.
-
-For each tag, decide if it should:
-1. "keep" - useful and distinct
-2. "merge" - merge into another existing tag (set mergeInto to the target tag name)
-3. "delete" - unused or fully redundant
-
-Every tag must appear exactly once in suggestions.
-For "keep" and "delete" actions, set mergeInto to an empty string "".
-
-Here are the tags (id, name, document count):
-%s`, string(tagsJson))
-
-	req := generateRequest{
-		Model:  c.model,
-		Prompt: prompt,
-		Format: tagAnalysisSchema,
-		Stream: false,
-	}
-	data, _ := json.Marshal(req)
-	resp, err := c.http.Post(c.host+"/api/generate", "application/json", bytes.NewReader(data))
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("ollama error %d: %s", resp.StatusCode, string(body))
-	}
-	var gen generateResponse
-	json.NewDecoder(resp.Body).Decode(&gen)
-
-	var analysis types.TagCleanupAnalysis
-	if err := json.Unmarshal([]byte(gen.Response), &analysis); err != nil {
-		return nil, fmt.Errorf("parse ollama response: %w (raw: %s)", err, gen.Response)
-	}
-	return &analysis, nil
 }
 
 // ── /api/chat with tool calling ──────────────────────────────────────────────
@@ -324,10 +253,11 @@ func (c *Client) Chat(model string, messages []ChatMessage, tools []ChatTool) (*
 		model = c.model
 	}
 	req := chatRequest{
-		Model:    model,
-		Messages: messages,
-		Tools:    tools,
-		Stream:   false,
+		Model:     model,
+		Messages:  messages,
+		Tools:     tools,
+		Stream:    false,
+		KeepAlive: -1,
 	}
 	data, _ := json.Marshal(req)
 	resp, err := c.http.Post(c.host+"/api/chat", "application/json", bytes.NewReader(data))

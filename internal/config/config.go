@@ -18,6 +18,7 @@ func Load() (*types.AppConfig, error) {
 
 	interval, _ := strconv.Atoi(getEnv("SCAN_INTERVAL", "0"))
 	strict := strings.EqualFold(getEnv("STRICT_METADATA", "false"), "true")
+	logPrompts := strings.EqualFold(getEnv("LOG_PROMPTS", "false"), "true")
 
 	return &types.AppConfig{
 		OllamaHost:     getEnv("OLLAMA_HOST", "http://localhost:11434"),
@@ -32,6 +33,7 @@ func Load() (*types.AppConfig, error) {
 		StrictMetadata: strict,
 		EmbedModel:     getEnv("EMBED_MODEL", "bge-m3:latest"),
 		IndexPath:      getEnv("INDEX_PATH", "./data"),
+		LogPrompts:     logPrompts,
 	}, nil
 }
 
@@ -50,6 +52,7 @@ func Save(cfg *types.AppConfig) error {
 		fmt.Sprintf("STRICT_METADATA=%v", cfg.StrictMetadata),
 		"EMBED_MODEL=" + cfg.EmbedModel,
 		"INDEX_PATH=" + cfg.IndexPath,
+		fmt.Sprintf("LOG_PROMPTS=%v", cfg.LogPrompts),
 	}
 	return os.WriteFile(envFile, []byte(strings.Join(lines, "\n")+"\n"), 0600)
 }

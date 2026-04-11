@@ -12,7 +12,7 @@
   <!-- Message history -->
   <div id="chat-messages"
        style="flex: 1; overflow-y: auto; padding: 0.5rem 0; margin-bottom: 1rem;">
-    <p style="color: var(--pico-muted-color); font-size: 0.9rem; text-align: center; margin-top: 2rem;">
+    <p id="chat-placeholder" style="color: var(--pico-muted-color); font-size: 0.9rem; text-align: center; margin-top: 2rem;">
       Ask anything about your documents.
     </p>
   </div>
@@ -103,7 +103,7 @@
     form.addEventListener('htmx:afterRequest', function() {
       const q = document.getElementById('question');
       if (q) q.value = '';
-      const placeholder = msgs.querySelector('p');
+      const placeholder = document.getElementById('chat-placeholder');
       if (placeholder) placeholder.remove();
     });
 

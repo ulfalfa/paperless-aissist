@@ -5,10 +5,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"html/template"
 	"net/http"
 	"reflect"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,6 +21,7 @@ import (
 	"github.com/ulf/paperless-aissist/internal/config"
 	"github.com/ulf/paperless-aissist/internal/logger"
 	"github.com/ulf/paperless-aissist/internal/mcp"
+	"github.com/ulf/paperless-aissist/internal/promptlog"
 	"github.com/ulf/paperless-aissist/internal/ollama"
 	"github.com/ulf/paperless-aissist/internal/paperless"
 	"github.com/ulf/paperless-aissist/internal/rag"
@@ -88,6 +89,15 @@ func init() {
 			}
 			return m
 		},
+		"slice": func(s string, a, b int) string {
+			if a > len(s) {
+				return ""
+			}
+			if b > len(s) {
+				b = len(s)
+			}
+			return s[a:b]
+		},
 		"not": func(v any) bool {
 			if v == nil {
 				return true
@@ -121,7 +131,6 @@ func init() {
 	partials = template.Must(template.New("").Funcs(tmplFunc).ParseFS(assets.FS,
 		"templates/analyze_result.html",
 		"templates/tag_docs.html",
-		"templates/tag_analysis.html",
 		"templates/scan_status.html",
 		"templates/settings_form.html",
 		"templates/prompt_form.html",
@@ -129,6 +138,7 @@ func init() {
 		"templates/index_status.html",
 		"templates/chat_answer.html",
 		"templates/chat_loading.html",
+		"templates/prompt_entries.html",
 	))
 }
 
@@ -139,7 +149,6 @@ func pageTmpl(page string) *template.Template {
 		"templates/layout.html",
 		"templates/analyze_result.html",
 		"templates/tag_docs.html",
-		"templates/tag_analysis.html",
 		"templates/scan_status.html",
 		"templates/settings_form.html",
 		"templates/prompt_form.html",
@@ -147,6 +156,7 @@ func pageTmpl(page string) *template.Template {
 		"templates/index_status.html",
 		"templates/chat_answer.html",
 		"templates/chat_loading.html",
+		"templates/prompt_entries.html",
 		"templates/"+page,
 	))
 }
@@ -178,6 +188,7 @@ func NewRouter(am *auth.Manager, paperlessToken string) http.Handler {
 	r.Get("/api/prompt", handleGetPrompt)
 	r.Post("/api/prompt", handlePostPrompt)
 	r.Post("/api/analyze", handleAnalyze)
+	r.Post("/api/webhook", handleWebhook)
 	r.Patch("/api/documents/{id}", handleUpdateDocument)
 	r.Get("/api/metadata", handleGetMetadata)
 	r.Get("/api/documents", handleListDocuments)
@@ -185,14 +196,16 @@ func NewRouter(am *auth.Manager, paperlessToken string) http.Handler {
 	r.Post("/api/scan/run", handleScanRun)
 	r.Get("/api/logs", handleGetLogs)
 	r.Delete("/api/logs", handleClearLogs)
+	r.Get("/api/prompts", handleGetPromptLog)
+	r.Delete("/api/prompts", handleClearPromptLog)
 
 	// UI pages
 	r.Get("/", handleAnalyzePage)
 	r.Get("/scan", handleScanPage)
-	r.Get("/cleanup", handleCleanupPage)
 	r.Get("/chat", handleChatPage)
 	r.Get("/settings", handleSettingsPage)
 	r.Get("/logs", handleLogsPage)
+	r.Get("/prompts", handlePromptsPage)
 
 	// HTMX partials
 	r.Post("/ui/analyze", handleAnalyzeForm)
@@ -201,10 +214,6 @@ func NewRouter(am *auth.Manager, paperlessToken string) http.Handler {
 	r.Get("/ui/scan/status", handleScanStatusPartial)
 	r.Get("/ui/logs", handleLogsPartial)
 	r.Get("/ui/tags/docs", handleTagDocsPartial)
-	r.Post("/ui/cleanup/load", handleLoadTags)
-	r.Post("/ui/cleanup/analyze", handleAnalyzeTags)
-	r.Post("/ui/cleanup/merge", handleMergeTags)
-	r.Post("/ui/cleanup/delete", handleDeleteTag)
 	r.Post("/ui/settings", handleSettingsForm)
 	r.Post("/ui/prompt", handlePromptForm)
 	r.Post("/ui/chat", handleChatForm)
@@ -432,6 +441,85 @@ func handleUpdateDocument(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, map[string]bool{"ok": true})
 }
 
+// handleWebhook is called by paperless-ngx when a document is consumed/updated.
+// Auth: Authorization: Token <PAPERLESS_API_TOKEN>
+// Body: {"document_id": 123}
+func handleWebhook(w http.ResponseWriter, r *http.Request) {
+	cfg, err := config.Load()
+	if err != nil {
+		jsonError(w, 500, "config error")
+		return
+	}
+
+	// Token auth — same format as paperless-ngx API
+	if r.Header.Get("Authorization") != "Token "+cfg.PaperlessToken {
+		w.Header().Set("WWW-Authenticate", `Token realm="paperless-aissist"`)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	rawBody, _ := io.ReadAll(r.Body)
+	logger.Info(fmt.Sprintf("Webhook: POST from %s", r.RemoteAddr), string(rawBody))
+
+	var body struct {
+		DocumentID int `json:"document_id"`
+	}
+	if err := json.Unmarshal(rawBody, &body); err != nil || body.DocumentID == 0 {
+		jsonError(w, 400, "missing document_id")
+		return
+	}
+
+	logger.Info(fmt.Sprintf("Webhook: analyzing document %d", body.DocumentID))
+
+	resp, err := analyzeDocument(body.DocumentID)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Webhook: analysis failed for doc %d", body.DocumentID), err.Error())
+		jsonError(w, 500, err.Error())
+		return
+	}
+
+	// Save analysis result to paperless-ngx
+	pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
+	result := resp.Analysis
+	var tagIDs []int
+	for _, name := range result.Tags {
+		tid, err := pc.ResolveOrCreate("tag", name, resp.Tags)
+		if err == nil && tid != nil {
+			tagIDs = append(tagIDs, *tid)
+		}
+	}
+	var corrID *int
+	if result.Correspondent != nil {
+		corrID, _ = pc.ResolveOrCreate("correspondent", *result.Correspondent, resp.Correspondents)
+	}
+	var dtID *int
+	if result.DocumentType != nil {
+		dtID, _ = pc.ResolveOrCreate("document_type", *result.DocumentType, resp.DocumentTypes)
+	}
+	created := resp.Document.Created
+	if result.CreatedDate != nil {
+		created = *result.CreatedDate + "T00:00:00Z"
+	}
+	update := types.DocumentUpdate{
+		Title:         result.Title,
+		Created:       created,
+		Correspondent: corrID,
+		DocumentType:  dtID,
+		Tags:          tagIDs,
+	}
+	if err := pc.UpdateDocument(body.DocumentID, update); err != nil {
+		logger.Error(fmt.Sprintf("Webhook: update failed for doc %d", body.DocumentID), err.Error())
+		jsonError(w, 500, err.Error())
+		return
+	}
+	logger.Info(fmt.Sprintf("Webhook: saved doc %d: %s", body.DocumentID, result.Title))
+
+	// Update RAG index in background
+	go rag.Global().RunOnce(false)
+
+	jsonResponse(w, map[string]any{"ok": true, "title": result.Title})
+}
+
 func handleGetMetadata(w http.ResponseWriter, r *http.Request) {
 	cfg, _ := config.Load()
 	pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
@@ -493,6 +581,243 @@ func handleClearLogs(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, map[string]bool{"ok": true})
 }
 
+func handleGetPromptLog(w http.ResponseWriter, r *http.Request) {
+	data, err := promptlog.Read()
+	if err != nil {
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	w.Header().Set("Content-Disposition", `attachment; filename="prompts.jsonl"`)
+	w.Write(data)
+}
+
+func handleClearPromptLog(w http.ResponseWriter, r *http.Request) {
+	if err := promptlog.Clear(); err != nil {
+		jsonError(w, 500, err.Error())
+		return
+	}
+	// Return empty entries partial for HTMX swap
+	renderPartial(w, "prompt_entries.html", promptPageData())
+}
+
+// ── Prompt log page ───────────────────────────────────────────────────────────
+
+type promptEntryView struct {
+	Type       string
+	Timestamp  string
+	Round      int
+	DurationMs float64
+	Meta       map[string]string
+
+	// LLM fields
+	Model      string
+	Messages   []promptMessageView
+	Response   *promptMessageView
+	Tools      []promptToolView
+	ToolCount  int
+	Tokens     int
+	TokensPerS float64
+
+	// Tool fields
+	ToolName   string
+	ToolArgs   string
+	ToolResult string
+	ToolError  string
+
+	// UI
+	Question     string // last user message (for summary display)
+	HistoryCount int    // number of prior turns (messages minus system + latest user)
+	RawRequest   string // full JSON payload sent to Ollama
+	IsLast       bool
+}
+
+type promptMessageView struct {
+	Role      string
+	Content   string
+	ToolCalls []promptToolCallView
+}
+
+type promptToolCallView struct {
+	Name string
+	Args string
+}
+
+type promptToolView struct {
+	Name        string
+	Description string
+}
+
+type promptsData struct {
+	LogPath string
+	Entries []promptEntryView
+}
+
+func promptPageData() promptsData {
+	path := promptlog.Path()
+	if path == "" {
+		return promptsData{}
+	}
+	raw, err := promptlog.Read()
+	if err != nil || len(raw) == 0 {
+		return promptsData{LogPath: path}
+	}
+
+	var entries []promptEntryView
+	for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		if line == "" {
+			continue
+		}
+		var e promptlog.Entry
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			continue
+		}
+
+		// Base fields for all entries
+		entry := promptEntryView{
+			Type:       e.Type,
+			Timestamp:  e.Timestamp,
+			Round:      e.Round,
+			DurationMs: e.DurationMs,
+			Meta:       e.Meta,
+		}
+
+		if e.Type == "llm" {
+			// Parse messages
+			rawMsgs, _ := json.Marshal(e.Messages)
+			var msgs []struct {
+				Role      string            `json:"role"`
+				Content   string            `json:"content"`
+				ToolCalls []json.RawMessage `json:"tool_calls"`
+			}
+			json.Unmarshal(rawMsgs, &msgs)
+
+			var msgViews []promptMessageView
+			for _, m := range msgs {
+				mv := promptMessageView{Role: m.Role, Content: m.Content}
+				for _, tc := range m.ToolCalls {
+					var parsed struct {
+						Function struct {
+							Name      string          `json:"name"`
+							Arguments json.RawMessage `json:"arguments"`
+						} `json:"function"`
+					}
+					if json.Unmarshal(tc, &parsed) == nil {
+						args, _ := json.MarshalIndent(parsed.Function.Arguments, "", "  ")
+						mv.ToolCalls = append(mv.ToolCalls, promptToolCallView{
+							Name: parsed.Function.Name,
+							Args: string(args),
+						})
+					}
+				}
+				msgViews = append(msgViews, mv)
+			}
+
+			// Parse response
+			rawResp, _ := json.Marshal(e.Response)
+			var respMsg struct {
+				Role      string            `json:"role"`
+				Content   string            `json:"content"`
+				ToolCalls []json.RawMessage `json:"tool_calls"`
+			}
+			if json.Unmarshal(rawResp, &respMsg) == nil && respMsg.Role != "" {
+				respView := &promptMessageView{Role: respMsg.Role, Content: respMsg.Content}
+				for _, tc := range respMsg.ToolCalls {
+					var parsed struct {
+						Function struct {
+							Name      string          `json:"name"`
+							Arguments json.RawMessage `json:"arguments"`
+						} `json:"function"`
+					}
+					if json.Unmarshal(tc, &parsed) == nil {
+						args, _ := json.MarshalIndent(parsed.Function.Arguments, "", "  ")
+						respView.ToolCalls = append(respView.ToolCalls, promptToolCallView{
+							Name: parsed.Function.Name,
+							Args: string(args),
+						})
+					}
+				}
+				entry.Response = respView
+			}
+
+			// Parse tools
+			rawTools, _ := json.Marshal(e.Tools)
+			var tools []struct {
+				Function struct {
+					Name        string `json:"name"`
+					Description string `json:"description"`
+				} `json:"function"`
+			}
+			json.Unmarshal(rawTools, &tools)
+
+			var toolViews []promptToolView
+			for _, t := range tools {
+				toolViews = append(toolViews, promptToolView{
+					Name:        t.Function.Name,
+					Description: t.Function.Description,
+				})
+			}
+
+			// Extract last user message as question for summary display
+			for i := len(msgViews) - 1; i >= 0; i-- {
+				if msgViews[i].Role == "user" {
+					q := msgViews[i].Content
+					if len(q) > 80 {
+						q = q[:80] + "…"
+					}
+					entry.Question = q
+					break
+				}
+			}
+			// History = all messages except system (first) and latest user (last)
+			if len(msgViews) > 2 {
+				entry.HistoryCount = len(msgViews) - 2
+			}
+
+			// Build raw JSON request payload as sent to Ollama
+			rawPayload, _ := json.MarshalIndent(map[string]any{
+				"model":    e.Model,
+				"messages": e.Messages,
+				"tools":    e.Tools,
+				"stream":   false,
+			}, "", "  ")
+			entry.RawRequest = string(rawPayload)
+
+			entry.Model = e.Model
+			entry.Messages = msgViews
+			entry.Tools = toolViews
+			entry.ToolCount = len(toolViews)
+			entry.Tokens = e.Tokens
+			entry.TokensPerS = e.TokensPerS
+		} else if e.Type == "tool" {
+			// Parse tool args
+			rawArgs, _ := json.Marshal(e.ToolArgs)
+			args, _ := json.MarshalIndent(rawArgs, "", "  ")
+
+			entry.ToolName = e.ToolName
+			entry.ToolArgs = string(args)
+			entry.ToolResult = e.ToolResult
+			entry.ToolError = e.ToolError
+		}
+
+		entries = append(entries, entry)
+	}
+
+	if len(entries) > 0 {
+		entries[len(entries)-1].IsLast = true
+	}
+
+	return promptsData{LogPath: path, Entries: entries}
+}
+
+func handlePromptsPage(w http.ResponseWriter, r *http.Request) {
+	render(w, "prompts.html", pageData{
+		ActivePage: "prompts",
+		Data:       promptPageData(),
+	})
+}
+
 // ── UI page handlers ──────────────────────────────────────────────────────────
 
 func handleAnalyzePage(w http.ResponseWriter, r *http.Request) {
@@ -541,120 +866,6 @@ func handleTagDocsPartial(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	renderPartial(w, "tag_docs.html", docs)
-}
-
-func handleCleanupPage(w http.ResponseWriter, r *http.Request) {
-	render(w, "cleanup.html", pageData{
-		ActivePage: "cleanup",
-		Data:       nil,
-	})
-}
-
-func handleLoadTags(w http.ResponseWriter, r *http.Request) {
-	logger.Info("Loading tags with document counts")
-	cfg, _ := config.Load()
-	pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
-	tags, err := pc.ListTagsWithCount()
-	if err != nil {
-		logger.Error("Failed to load tags", err.Error())
-		renderPartial(w, "tag_list.html", map[string]any{"Error": err.Error()})
-		return
-	}
-	// Sort by count descending
-	sort.Slice(tags, func(i, j int) bool {
-		return tags[i].Count > tags[j].Count
-	})
-	logger.Info(fmt.Sprintf("Loaded %d tags", len(tags)))
-	renderPartial(w, "tag_list.html", tags)
-}
-
-func handleAnalyzeTags(w http.ResponseWriter, r *http.Request) {
-	cfg, _ := config.Load()
-	pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
-	oc := ollama.New(cfg.OllamaHost, cfg.OllamaModel)
-
-	logger.Info("Starting tag cleanup analysis")
-
-	tags, err := pc.ListTagsWithCount()
-	if err != nil {
-		logger.Error("Failed to load tags for analysis", err.Error())
-		renderPartial(w, "tag_analysis.html", map[string]any{"Error": "Failed to load tags: " + err.Error()})
-		return
-	}
-	if len(tags) == 0 {
-		renderPartial(w, "tag_analysis.html", map[string]any{"Error": "No tags found to analyze"})
-		return
-	}
-
-	logger.Info(fmt.Sprintf("Sending %d tags to Ollama for analysis", len(tags)))
-	analysis, err := oc.AnalyzeTags(tags)
-	if err != nil {
-		logger.Error("Tag cleanup analysis failed", err.Error())
-		renderPartial(w, "tag_analysis.html", map[string]any{"Error": "Analysis failed: " + err.Error()})
-		return
-	}
-
-	logger.Info(fmt.Sprintf("Tag cleanup analysis complete: %d suggestions", len(analysis.Suggestions)))
-	renderPartial(w, "tag_analysis.html", analysis)
-}
-
-func handleMergeTags(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
-	sourceID, _ := strconv.Atoi(r.FormValue("sourceId"))
-	targetName := r.FormValue("targetName")
-
-	if sourceID == 0 || targetName == "" {
-		renderPartial(w, "tag_analysis.html", map[string]any{"Error": "Invalid parameters"})
-		return
-	}
-
-	cfg, _ := config.Load()
-	pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
-
-	// Find target tag ID
-	tags, _ := pc.ListTags()
-	var targetID *int
-	for _, tag := range tags {
-		if strings.EqualFold(tag.Name, targetName) {
-			id := tag.ID
-			targetID = &id
-			break
-		}
-	}
-	if targetID == nil {
-		renderPartial(w, "tag_analysis.html", map[string]any{"Error": "Target tag not found: " + targetName})
-		return
-	}
-
-	if err := pc.MergeTags(sourceID, *targetID); err != nil {
-		renderPartial(w, "tag_analysis.html", map[string]any{"Error": "Merge failed: " + err.Error()})
-		return
-	}
-
-	logger.Info(fmt.Sprintf("Merged tag %d into %d", sourceID, *targetID))
-	w.Header().Set("Content-Type", "text/html")
-	fmt.Fprintf(w, `<p class="flash">✓ Tags merged successfully. Re-analyze to see updated suggestions.</p>`)
-}
-
-func handleDeleteTag(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
-	tagID, _ := strconv.Atoi(r.FormValue("tagId"))
-	if tagID == 0 {
-		renderPartial(w, "tag_analysis.html", map[string]any{"Error": "Invalid tag ID"})
-		return
-	}
-
-	cfg, _ := config.Load()
-	pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
-
-	if err := pc.DeleteTag(tagID); err != nil {
-		renderPartial(w, "tag_analysis.html", map[string]any{"Error": "Delete failed: " + err.Error()})
-		return
-	}
-
-	logger.Info(fmt.Sprintf("Deleted tag %d", tagID))
-	w.Header().Set("Content-Type", "text/html")
-	fmt.Fprintf(w, `<p class="flash">✓ Tag deleted. Re-analyze to see updated suggestions.</p>`)
 }
 
 func handleScanPage(w http.ResponseWriter, r *http.Request) {

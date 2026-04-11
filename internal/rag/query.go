@@ -8,8 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ulf/paperless-aissist/internal/logger"
 	"github.com/ulf/paperless-aissist/internal/ollama"
 	"github.com/ulf/paperless-aissist/internal/paperless"
+	"github.com/ulf/paperless-aissist/internal/promptlog"
 	"github.com/ulf/paperless-aissist/internal/tools"
 	"github.com/ulf/paperless-aissist/internal/types"
 )
@@ -36,36 +38,52 @@ func (idx *Indexer) Query(
 	// ── 1. Vector search for document context ────────────────────────────────
 	var ragContext string
 	var sources []types.ChatSource
+	ragMeta := map[string]string{"rag_count": "0"}
 
 	status("Searching document index...")
-	emb, err := oc.Embed(embedModel, question)
-	if err == nil {
+	emb, embedErr := oc.Embed(embedModel, question)
+	if embedErr != nil {
+		logger.Warn("RAG embed failed", embedErr.Error())
+		ragMeta["rag_error"] = embedErr.Error()
+	} else {
 		ctx := context.Background()
-		if results, err := idx.store.Search(ctx, emb, 5); err == nil && len(results) > 0 {
-			var parts []string
-			for i, r := range results {
-				title := r.Metadata["title"]
-				docID, _ := strconv.Atoi(r.ID)
-				parts = append(parts, fmt.Sprintf("[%d] %s\n%s", i+1, title, r.Content))
-				sources = append(sources, types.ChatSource{
-					ID:           docID,
-					Title:        title,
-					ScorePercent: int(r.Similarity * 100),
-					PaperlessURL: strings.TrimRight(paperlessBaseURL, "/") + fmt.Sprintf("/documents/%d/details", docID),
-				})
+		results, searchErr := idx.store.Search(ctx, emb, 5)
+		if searchErr != nil {
+			logger.Warn("RAG search failed", searchErr.Error())
+			ragMeta["rag_error"] = searchErr.Error()
+		} else {
+			ragMeta["rag_count"] = strconv.Itoa(len(results))
+			if len(results) > 0 {
+				var parts []string
+				for i, r := range results {
+					title := r.Metadata["title"]
+					docID, _ := strconv.Atoi(r.ID)
+					parts = append(parts, fmt.Sprintf("[%d] %s\n%s", i+1, title, r.Content))
+					sources = append(sources, types.ChatSource{
+						ID:           docID,
+						Title:        title,
+						ScorePercent: int(r.Similarity * 100),
+						PaperlessURL: strings.TrimRight(paperlessBaseURL, "/") + fmt.Sprintf("/documents/%d/details", docID),
+					})
+				}
+				ragContext = strings.Join(parts, "\n\n")
 			}
-			ragContext = strings.Join(parts, "\n\n")
 		}
 	}
 
 	// ── 2. Build initial messages ─────────────────────────────────────────────
 	systemContent := "You are an assistant for a personal document archive.\n" +
-		"Use the provided tools to answer questions about the archive (tags, counts, search, documents).\n" +
-		"Be concise and specific. Always respond in the same language the user used."
+		"Be concise and specific. Always respond in the same language the user used.\n\n"
 
 	if ragContext != "" {
-		systemContent += "\n\nRelevant document excerpts from the archive index:\n" + ragContext
+		systemContent += "The following document excerpts were retrieved via semantic search and are the most relevant documents for this question. " +
+			"Answer DIRECTLY from these excerpts. Do NOT call any tools — especially not search_documents — when these excerpts contain relevant information.\n\n" +
+			ragContext + "\n\n"
 	}
+
+	systemContent += "Only call tools when: (a) the user asks specifically about metadata (tags, correspondents, document types, counts), " +
+		"or (b) the excerpts above are empty or clearly insufficient to answer the question. " +
+		"Never call search_documents more than once — if a search returns no results, stop and say so."
 
 	messages := []ollama.ChatMessage{
 		{Role: "system", Content: systemContent},
@@ -77,14 +95,18 @@ func (idx *Indexer) Query(
 
 	// ── 3. Tool-call loop ─────────────────────────────────────────────────────
 	ollamaTools := buildTools()
-	const maxRounds = 5
+	const maxRounds = 3
 	var answer string
 	start := time.Now()
 	perf := &types.ChatPerf{}
 
 	for round := 0; round < maxRounds; round++ {
 		status("Thinking…")
+
+		// LLM call with timing
+		llmStart := time.Now()
 		msg, rp, err := oc.Chat(chatModel, messages, ollamaTools)
+		llmDuration := float64(time.Since(llmStart).Milliseconds())
 		if err != nil {
 			return nil, fmt.Errorf("chat: %w", err)
 		}
@@ -94,6 +116,13 @@ func (idx *Indexer) Query(
 			perf.TokensPerSec = rp.TokensPerSec // use last round's rate
 		}
 
+		// Log LLM round (after the call, with response)
+		var meta map[string]string
+		if round == 0 {
+			meta = ragMeta
+		}
+		promptlog.WriteLLM(round, chatModel, messages, ollamaTools, msg, llmDuration, rp.GeneratedTokens, rp.TokensPerSec, meta)
+
 		messages = append(messages, *msg)
 
 		if len(msg.ToolCalls) == 0 {
@@ -101,18 +130,27 @@ func (idx *Indexer) Query(
 			break
 		}
 
-		// Execute each tool call and append results
+		// Execute each tool call with timing
 		for _, tc := range msg.ToolCalls {
 			status(fmt.Sprintf("Calling tool: %s…", tc.Function.Name))
+			toolStart := time.Now()
 			tr, err := tools.Execute(tc.Function.Name, tc.Function.Arguments, pc, paperlessBaseURL)
+			toolDuration := float64(time.Since(toolStart).Milliseconds())
+
 			text := ""
+			errStr := ""
 			if err != nil {
 				text = fmt.Sprintf("error: %v", err)
+				errStr = err.Error()
 			} else {
 				text = tr.Text
 				sources = appendUniqueSources(sources, tr.Sources)
 			}
 			perf.ToolCalls++
+
+			// Log tool execution
+			promptlog.WriteTool(round, tc.Function.Name, tc.Function.Arguments, text, errStr, toolDuration)
+
 			messages = append(messages, ollama.ChatMessage{
 				Role:    "tool",
 				Content: text,
@@ -177,8 +215,9 @@ func buildTools() []ollama.ChatTool {
 		{
 			Type: "function",
 			Function: ollama.ChatToolFunction{
-				Name:        "search_documents",
-				Description: "Search for documents in paperless-ngx by keyword or phrase. Returns matching document titles and IDs.",
+				Name: "search_documents",
+				Description: "Search paperless-ngx by keyword. Use ONLY when the semantic excerpts provided in the system prompt are empty or do not address the question at all. " +
+					"Do NOT use this if relevant document excerpts are already present. Call this at most once per user question.",
 				Parameters: json.RawMessage(`{
 					"type": "object",
 					"properties": {
@@ -207,7 +246,7 @@ func buildTools() []ollama.ChatTool {
 			Type: "function",
 			Function: ollama.ChatToolFunction{
 				Name:        "list_documents_by_type",
-				Description: "List all documents with a given document type (e.g. 'Zeugnis', 'Rechnung'). Use list_document_types first if you need to know available types.",
+				Description: "List all documents with a given document type (e.g. 'Zeugnis', 'Rechnung').",
 				Parameters: json.RawMessage(`{
 					"type": "object",
 					"properties": {
@@ -221,7 +260,7 @@ func buildTools() []ollama.ChatTool {
 			Type: "function",
 			Function: ollama.ChatToolFunction{
 				Name:        "list_documents_by_correspondent",
-				Description: "List all documents from a specific correspondent (sender/recipient). Use list_correspondents first if you need to know available correspondents.",
+				Description: "List all documents from a specific correspondent (sender/recipient).",
 				Parameters: json.RawMessage(`{
 					"type": "object",
 					"properties": {

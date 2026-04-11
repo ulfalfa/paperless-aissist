@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -20,10 +21,16 @@ func add(level, message, detail string) {
 	if strings.Contains(message, "polling") || strings.Contains(message, "status check") {
 		return
 	}
+	now := time.Now().UTC()
+	if detail != "" {
+		fmt.Printf("[%s] %s: %s — %s\n", now.Format("15:04:05"), level, message, detail)
+	} else {
+		fmt.Printf("[%s] %s: %s\n", now.Format("15:04:05"), level, message)
+	}
 	mu.Lock()
 	defer mu.Unlock()
 	entry := types.LogEntry{
-		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Timestamp: now.Format(time.RFC3339),
 		Level:     level,
 		Message:   message,
 		Detail:    detail,

@@ -1,0 +1,164 @@
+{{define "prompt_entries.html"}}
+{{if not .Entries}}
+  <p style="color:var(--pico-muted-color); text-align:center; margin-top:3rem;">
+    {{if .LogPath}}Noch keine Einträge. Stelle eine Frage im Chat.{{else}}Logging ist deaktiviert. Setze <code>LOG_PROMPTS=true</code> in der <code>.env</code> Datei.{{end}}
+  </p>
+{{else}}
+  {{range .Entries}}
+  {{if eq .Type "llm"}}
+  <details class="prompt-entry prompt-entry-llm" {{if .IsLast}}open{{end}}>
+    <summary class="prompt-summary">
+      <span class="prompt-badge prompt-badge-round">Round {{.Round}}</span>
+      {{with .Meta}}
+        {{if index . "rag_error"}}
+          <span class="prompt-badge prompt-badge-rag-err" title="{{index . "rag_error"}}">RAG ✗</span>
+        {{else if eq (index . "rag_count") "0"}}
+          <span class="prompt-badge prompt-badge-rag-warn">RAG: 0</span>
+        {{else}}
+          <span class="prompt-badge prompt-badge-rag-ok">RAG: {{index . "rag_count"}}</span>
+        {{end}}
+      {{end}}
+      <span class="prompt-model">{{.Model}}</span>
+      {{if .Question}}<span class="prompt-question">{{.Question}}</span>{{end}}
+      <span class="prompt-timing">{{printf "%.0f" .DurationMs}}ms · {{.Tokens}} tok · {{printf "%.0f" .TokensPerS}} tok/s</span>
+      <span class="prompt-ts">{{.Timestamp}}</span>
+      <span style="margin-left:auto; color:var(--pico-muted-color); font-size:0.8rem;">
+        {{len .Messages}} msgs{{if .HistoryCount}} · {{.HistoryCount}} history{{end}}{{if .ToolCount}} · {{.ToolCount}} tools{{end}}
+      </span>
+    </summary>
+
+    <div class="prompt-messages">
+      {{range .Messages}}
+      <div class="prompt-msg prompt-msg-{{.Role}}">
+        <div class="prompt-msg-role">{{.Role}}</div>
+        {{if .ToolCalls}}
+          <div class="prompt-msg-content"><em style="color:var(--pico-muted-color);">[tool calls]</em></div>
+          {{range .ToolCalls}}
+          <details style="margin-top:0.4rem;">
+            <summary style="cursor:pointer; font-size:0.85rem; font-weight:600;">⚙ {{.Name}}</summary>
+            <pre class="prompt-pre">{{.Args}}</pre>
+          </details>
+          {{end}}
+        {{else}}
+          {{if gt (len .Content) 800}}
+          <details>
+            <summary style="cursor:pointer; font-size:0.85rem; color:var(--pico-muted-color);">
+              {{slice .Content 0 120}}… <span style="font-size:0.75rem;">({{len .Content}} Zeichen)</span>
+            </summary>
+            <pre class="prompt-pre">{{.Content}}</pre>
+          </details>
+          {{else}}
+          <pre class="prompt-pre">{{.Content}}</pre>
+          {{end}}
+        {{end}}
+      </div>
+      {{end}}
+
+      {{if .Response}}
+      <div class="prompt-msg prompt-msg-{{.Response.Role}}">
+        <div class="prompt-msg-role">{{.Response.Role}}</div>
+        {{if .Response.ToolCalls}}
+          <div class="prompt-msg-content"><em style="color:var(--pico-muted-color);">[tool calls]</em></div>
+          {{range .Response.ToolCalls}}
+          <details style="margin-top:0.4rem;">
+            <summary style="cursor:pointer; font-size:0.85rem; font-weight:600;">⚙ {{.Name}}</summary>
+            <pre class="prompt-pre">{{.Args}}</pre>
+          </details>
+          {{end}}
+        {{else}}
+          {{if gt (len .Response.Content) 800}}
+          <details>
+            <summary style="cursor:pointer; font-size:0.85rem; color:var(--pico-muted-color);">
+              {{slice .Response.Content 0 120}}… <span style="font-size:0.75rem;">({{len .Response.Content}} Zeichen)</span>
+            </summary>
+            <pre class="prompt-pre">{{.Response.Content}}</pre>
+          </details>
+          {{else}}
+          <pre class="prompt-pre">{{.Response.Content}}</pre>
+          {{end}}
+        {{end}}
+      </div>
+      {{end}}
+
+      {{if .RawRequest}}
+      <details style="margin-top:0.5rem;">
+        <summary style="cursor:pointer; color:var(--pico-muted-color); font-size:0.85rem;">
+          Raw Ollama Request (JSON)
+        </summary>
+        <pre class="prompt-pre" style="max-height:600px; border:1px solid var(--pico-muted-border-color); border-radius:4px; margin-top:0.4rem;">{{.RawRequest}}</pre>
+      </details>
+      {{end}}
+    </div>
+  </details>
+  {{else if eq .Type "tool"}}
+  <details class="prompt-entry prompt-entry-tool" {{if .IsLast}}open{{end}}>
+    <summary class="prompt-summary">
+      <span class="prompt-badge prompt-badge-round">Round {{.Round}}</span>
+      <span style="color: #d97706; font-weight: 600;">⚙ {{.ToolName}}</span>
+      <span class="prompt-timing">{{printf "%.0f" .DurationMs}}ms</span>
+      <span class="prompt-ts">{{.Timestamp}}</span>
+      {{if .ToolError}}
+      <span style="margin-left:auto; color:#dc2626; font-size:0.85rem; font-weight:600;">✗ Error</span>
+      {{end}}
+    </summary>
+    <div class="prompt-messages">
+      <div style="border-radius: 6px; overflow: hidden; border: 1px solid var(--pico-muted-border-color);">
+        <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; padding:0.2rem 0.6rem; background: #f3f4f6; color:#374151;">Args</div>
+        <pre class="prompt-pre">{{.ToolArgs}}</pre>
+      </div>
+      {{if .ToolError}}
+      <div style="border-radius: 6px; overflow: hidden; border: 1px solid #fecaca; margin-top:0.5rem;">
+        <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; padding:0.2rem 0.6rem; background: #fee2e2; color:#dc2626;">Error</div>
+        <pre class="prompt-pre">{{.ToolError}}</pre>
+      </div>
+      {{else}}
+      <div style="border-radius: 6px; overflow: hidden; border: 1px solid var(--pico-muted-border-color); margin-top:0.5rem;">
+        <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; padding:0.2rem 0.6rem; background: var(--pico-card-sectionning-background-color); color:var(--pico-muted-color);">Result</div>
+        {{if gt (len .ToolResult) 500}}
+        <details style="border-top: 1px solid var(--pico-muted-border-color);">
+          <summary style="cursor:pointer; font-size:0.85rem; color:var(--pico-muted-color); padding:0.4rem 0.6rem;">
+            {{slice .ToolResult 0 100}}… <span style="font-size:0.75rem;">({{len .ToolResult}} Zeichen)</span>
+          </summary>
+          <pre class="prompt-pre">{{.ToolResult}}</pre>
+        </details>
+        {{else}}
+        <pre class="prompt-pre">{{.ToolResult}}</pre>
+        {{end}}
+      </div>
+      {{end}}
+    </div>
+  </details>
+  {{end}}
+  {{end}}
+{{end}}
+
+<style>
+  .prompt-entry { border: 1px solid var(--pico-muted-border-color); border-radius: 6px; margin-bottom: 0.75rem; overflow: hidden; }
+  .prompt-entry-llm { border-left: 4px solid #3b82f6; }
+  .prompt-entry-tool { border-left: 4px solid #d97706; }
+  .prompt-entry > summary { list-style: none; display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 1rem; background: var(--pico-card-sectionning-background-color); cursor: pointer; font-size: 0.88rem; }
+  .prompt-entry > summary::-webkit-details-marker { display: none; }
+  .prompt-entry[open] > summary { border-bottom: 1px solid var(--pico-muted-border-color); }
+  .prompt-badge-round    { background: var(--pico-primary); color: #fff; border-radius: 10px; padding: 0.1rem 0.55rem; font-size: 0.75rem; font-weight: 700; }
+  .prompt-badge-rag-ok   { background: #059669; color: #fff; border-radius: 10px; padding: 0.1rem 0.55rem; font-size: 0.75rem; font-weight: 700; }
+  .prompt-badge-rag-warn { background: #d97706; color: #fff; border-radius: 10px; padding: 0.1rem 0.55rem; font-size: 0.75rem; font-weight: 700; }
+  .prompt-badge-rag-err  { background: #dc2626; color: #fff; border-radius: 10px; padding: 0.1rem 0.55rem; font-size: 0.75rem; font-weight: 700; cursor: help; }
+  .prompt-model { font-weight: 600; font-size: 0.85rem; }
+  .prompt-timing { color: #059669; font-weight: 500; font-size: 0.8rem; }
+  .prompt-ts { color: var(--pico-muted-color); font-size: 0.78rem; }
+  .prompt-question { font-style: italic; color: var(--pico-muted-color); font-size: 0.84rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .prompt-messages { padding: 0.75rem 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+  .prompt-msg { border-radius: 6px; overflow: hidden; }
+  .prompt-msg-role { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.2rem 0.6rem; }
+  .prompt-msg-content { padding: 0.4rem 0.6rem; }
+  .prompt-pre { margin: 0; padding: 0.5rem 0.6rem; font-size: 0.78rem; white-space: pre-wrap; word-break: break-word; background: transparent; border: none; max-height: 400px; overflow-y: auto; }
+  .prompt-msg-system .prompt-msg-role  { background: #6b7280; color: #fff; }
+  .prompt-msg-system  { border: 1px solid #d1d5db; }
+  .prompt-msg-user .prompt-msg-role    { background: var(--pico-primary); color: #fff; }
+  .prompt-msg-user    { border: 1px solid var(--pico-primary-border); }
+  .prompt-msg-assistant .prompt-msg-role { background: #059669; color: #fff; }
+  .prompt-msg-assistant { border: 1px solid #a7f3d0; }
+  .prompt-msg-tool .prompt-msg-role    { background: #d97706; color: #fff; }
+  .prompt-msg-tool    { border: 1px solid #fde68a; }
+</style>
+{{end}}

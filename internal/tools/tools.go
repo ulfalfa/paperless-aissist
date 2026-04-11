@@ -36,13 +36,13 @@ func Execute(name string, args json.RawMessage, pc *paperless.Client, baseURL st
 	switch name {
 
 	case "list_tags":
-		tags, err := pc.ListTagsWithCount()
+		tags, err := pc.ListTags()
 		if err != nil {
 			return nil, err
 		}
 		parts := make([]string, len(tags))
 		for i, t := range tags {
-			parts[i] = fmt.Sprintf("%s (ID:%d, %d docs)", t.Name, t.ID, t.Count)
+			parts[i] = fmt.Sprintf("%s (ID:%d, %d docs)", t.Name, t.ID, t.DocumentCount)
 		}
 		return &Result{
 			Text: fmt.Sprintf("%d tags: %s", len(tags), strings.Join(parts, ", ")),
@@ -103,7 +103,7 @@ func Execute(name string, args json.RawMessage, pc *paperless.Client, baseURL st
 			return nil, err
 		}
 		if len(docs) == 0 {
-			return &Result{Text: "no documents found", Data: docs}, nil
+			return &Result{Text: fmt.Sprintf("no documents found for query %q — do not retry with similar queries", p.Query), Data: docs}, nil
 		}
 		parts := make([]string, len(docs))
 		for i, d := range docs {

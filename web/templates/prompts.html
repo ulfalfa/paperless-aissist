@@ -1,0 +1,25 @@
+{{define "prompts.html"}}
+{{template "layout.html" .}}
+{{end}}
+
+{{define "content"}}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+  <h2 style="margin:0;">Prompt Log</h2>
+  <div style="display:flex; gap:0.5rem; align-items:center;">
+    <small style="color:var(--pico-muted-color);">{{if .Data.LogPath}}{{.Data.LogPath}}{{else}}LOG_PROMPTS=false — logging disabled{{end}}</small>
+    {{if .Data.LogPath}}
+    <button hx-delete="/api/prompts"
+            hx-confirm="Prompt log leeren?"
+            hx-target="#prompt-entries"
+            hx-swap="innerHTML"
+            style="font-size:0.82rem; padding:0.3rem 0.75rem; margin:0;">
+      Clear
+    </button>
+    {{end}}
+  </div>
+</div>
+
+<div id="prompt-entries">
+  {{template "prompt_entries.html" .Data}}
+</div>
+{{end}}

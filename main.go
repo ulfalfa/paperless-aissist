@@ -15,6 +15,7 @@ import (
 	"github.com/ulf/paperless-aissist/internal/ollama"
 	"github.com/ulf/paperless-aissist/internal/paperless"
 	pdf "github.com/ulf/paperless-aissist/internal/pdf"
+	"github.com/ulf/paperless-aissist/internal/promptlog"
 	"github.com/ulf/paperless-aissist/internal/rag"
 	"github.com/ulf/paperless-aissist/internal/scanner"
 	"github.com/ulf/paperless-aissist/internal/types"
@@ -79,6 +80,10 @@ func runServer() {
 	}
 	if err := rag.Init(cfg.IndexPath); err != nil {
 		log.Fatal("rag init:", err)
+	}
+	if cfg.LogPrompts {
+		promptlog.Init(cfg.IndexPath)
+		logger.Info("Prompt logging enabled", cfg.IndexPath+"/prompts.jsonl")
 	}
 	am, err := auth.New(cfg.IndexPath + "/credentials.json")
 	if err != nil {
