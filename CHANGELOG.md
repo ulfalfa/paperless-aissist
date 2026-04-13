@@ -1,3 +1,10 @@
+# [0.12.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.11.0...v0.12.0) (2026-04-13)
+
+
+### Features
+
+* pin found documents for follow-up chat queries ([e5df5ce](https://gitlab.com/ulfalfa/paperless-aissist/commit/e5df5ce7071f00607aedab1695ef74af0c56bb51))
+
 # [0.11.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.10.1...v0.11.0) (2026-04-13)
 
 
