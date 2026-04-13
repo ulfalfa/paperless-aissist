@@ -1,3 +1,10 @@
+# [0.11.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.10.1...v0.11.0) (2026-04-13)
+
+
+### Features
+
+* auto-sync RAG index after scan, move index controls to scan page ([ce3ebe9](https://gitlab.com/ulfalfa/paperless-aissist/commit/ce3ebe9de66b12beaf006ca2a5d7a1c64f0d03d4))
+
 ## [0.10.1](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.10.0...v0.10.1) (2026-04-13)
 
 
