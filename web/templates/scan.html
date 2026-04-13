@@ -5,10 +5,12 @@
 {{define "content"}}
 <h2>Auto-Scanner</h2>
 
+{{template "index_status.html" (map "Status" .Data.IndexStatus)}}
+
 <div id="scan-status"
      hx-get="/ui/scan/status"
      hx-trigger="every 3s"
      hx-swap="outerHTML">
-  {{template "scan_status.html" (map "Status" .Data)}}
+  {{template "scan_status.html" (map "Status" .Data.ScanStatus)}}
 </div>
 {{end}}

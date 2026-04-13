@@ -916,7 +916,10 @@ func handleTagDocsPartial(w http.ResponseWriter, r *http.Request) {
 func handleScanPage(w http.ResponseWriter, r *http.Request) {
 	render(w, "scan.html", pageData{
 		ActivePage: "scan",
-		Data:       scanner.GetStatus(),
+		Data: map[string]any{
+			"ScanStatus":  scanner.GetStatus(),
+			"IndexStatus": rag.Global().GetStatus(),
+		},
 	})
 }
 

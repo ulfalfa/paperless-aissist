@@ -10,6 +10,7 @@ import (
 	"github.com/ulf/paperless-aissist/internal/logger"
 	"github.com/ulf/paperless-aissist/internal/ollama"
 	"github.com/ulf/paperless-aissist/internal/paperless"
+	"github.com/ulf/paperless-aissist/internal/rag"
 	"github.com/ulf/paperless-aissist/internal/types"
 	"github.com/ulf/paperless-aissist/internal/validate"
 )
@@ -252,6 +253,11 @@ func RunOnce() {
 	status.LastErrors = errs
 	mu.Unlock()
 	logger.Info(fmt.Sprintf("Scanner: done, %d updated, %d errors", count, len(errs)))
+
+	if count > 0 {
+		logger.Info("Scanner: triggering RAG index sync for new documents")
+		go rag.Global().RunOnce(false)
+	}
 }
 
 func namesOf(items []types.PaperlessItem) []string {
