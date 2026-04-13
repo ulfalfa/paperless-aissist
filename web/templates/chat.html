@@ -23,6 +23,7 @@
           hx-swap="beforeend">
       <input type="hidden" name="chatModel" id="chat-model-hidden" value="{{.Data.DefaultModel}}">
       <input type="hidden" name="history" id="chat-history" value="[]">
+      <input type="hidden" name="pinned_ids" id="chat-pinned-ids" value="[]">
       <div style="display: flex; gap: 0.75rem; align-items: flex-end;">
         <textarea id="question" name="question" rows="2"
                   placeholder="Frage stellen…"

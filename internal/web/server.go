@@ -1161,6 +1161,12 @@ func handleChatForm(w http.ResponseWriter, r *http.Request) {
 		_ = json.Unmarshal([]byte(raw), &history)
 	}
 
+	// Parse pinned document IDs from previous turns
+	var pinnedDocIDs []int
+	if raw := r.FormValue("pinned_ids"); raw != "" {
+		_ = json.Unmarshal([]byte(raw), &pinnedDocIDs)
+	}
+
 	jobID := newJobID()
 	job := &chatJob{
 		status:   "Starting…",
@@ -1181,7 +1187,7 @@ func handleChatForm(w http.ResponseWriter, r *http.Request) {
 			job.mu.Unlock()
 		}
 
-		result, err := rag.Global().Query(question, cfg.PaperlessURL, oc, cfg.EmbedModel, chatModel, history, pc, onStatus)
+		result, err := rag.Global().Query(question, cfg.PaperlessURL, oc, cfg.EmbedModel, chatModel, history, pc, pinnedDocIDs, onStatus)
 
 		job.mu.Lock()
 		defer job.mu.Unlock()
@@ -1192,11 +1198,27 @@ func handleChatForm(w http.ResponseWriter, r *http.Request) {
 		} else {
 			logger.Info(fmt.Sprintf("RAG query answered with %d sources", len(result.Sources)))
 			historyJSON, _ := json.Marshal(result.History)
+			// Accumulate all source IDs for pinning in follow-up queries
+			allPinnedIDs := pinnedDocIDs
+			for _, s := range result.Sources {
+				found := false
+				for _, id := range allPinnedIDs {
+					if id == s.ID {
+						found = true
+						break
+					}
+				}
+				if !found {
+					allPinnedIDs = append(allPinnedIDs, s.ID)
+				}
+			}
+			pinnedIDsJSON, _ := json.Marshal(allPinnedIDs)
 			job.data = map[string]any{
-				"Question":    question,
-				"Model":       chatModel,
-				"Result":      result,
-				"HistoryJSON": string(historyJSON),
+				"Question":      question,
+				"Model":         chatModel,
+				"Result":        result,
+				"HistoryJSON":   string(historyJSON),
+				"PinnedIDsJSON": string(pinnedIDsJSON),
 			}
 		}
 	}()

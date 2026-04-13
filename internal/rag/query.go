@@ -26,6 +26,7 @@ func (idx *Indexer) Query(
 	embedModel, chatModel string,
 	history []types.ConversationMessage,
 	pc *paperless.Client,
+	pinnedDocIDs []int,
 	onStatus func(string),
 ) (*types.ChatResult, error) {
 
@@ -39,6 +40,28 @@ func (idx *Indexer) Query(
 	var ragContext string
 	var sources []types.ChatSource
 	ragMeta := map[string]string{"rag_count": "0"}
+
+	// Include previously pinned documents first
+	if len(pinnedDocIDs) > 0 {
+		status("Loading pinned documents...")
+		var pinnedParts []string
+		for _, id := range pinnedDocIDs {
+			doc, err := pc.GetDocument(id)
+			if err != nil {
+				logger.Warn(fmt.Sprintf("RAG: failed to load pinned doc %d", id), err.Error())
+				continue
+			}
+			pinnedParts = append(pinnedParts, fmt.Sprintf("[pinned] %s\n%s", doc.Title, doc.Content))
+			sources = append(sources, types.ChatSource{
+				ID:           doc.ID,
+				Title:        doc.Title,
+				PaperlessURL: strings.TrimRight(paperlessBaseURL, "/") + fmt.Sprintf("/documents/%d/details", doc.ID),
+			})
+		}
+		if len(pinnedParts) > 0 {
+			ragContext = strings.Join(pinnedParts, "\n\n")
+		}
+	}
 
 	status("Searching document index...")
 	emb, embedErr := oc.Embed(embedModel, question)
@@ -59,14 +82,19 @@ func (idx *Indexer) Query(
 					title := r.Metadata["title"]
 					docID, _ := strconv.Atoi(r.ID)
 					parts = append(parts, fmt.Sprintf("[%d] %s\n%s", i+1, title, r.Content))
-					sources = append(sources, types.ChatSource{
+					sources = appendUniqueSources(sources, []types.ChatSource{{
 						ID:           docID,
 						Title:        title,
 						ScorePercent: int(r.Similarity * 100),
 						PaperlessURL: strings.TrimRight(paperlessBaseURL, "/") + fmt.Sprintf("/documents/%d/details", docID),
-					})
+					}})
 				}
-				ragContext = strings.Join(parts, "\n\n")
+				vectorContext := strings.Join(parts, "\n\n")
+				if ragContext != "" {
+					ragContext = ragContext + "\n\n" + vectorContext
+				} else {
+					ragContext = vectorContext
+				}
 			}
 		}
 	}
@@ -76,7 +104,7 @@ func (idx *Indexer) Query(
 		"Be concise and specific. Always respond in the same language the user used.\n\n"
 
 	if ragContext != "" {
-		systemContent += "The following document excerpts were retrieved via semantic search and are the most relevant documents for this question. " +
+		systemContent += "The following document excerpts are available. Excerpts marked [pinned] are from documents already discussed in this conversation and have highest priority. " +
 			"Answer DIRECTLY from these excerpts. Do NOT call any tools — especially not search_documents — when these excerpts contain relevant information.\n\n" +
 			ragContext + "\n\n"
 	}

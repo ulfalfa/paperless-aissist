@@ -10,6 +10,9 @@
 {{with .HistoryJSON}}
 <input type="hidden" id="chat-history" name="history" value="{{.}}" hx-swap-oob="true">
 {{end}}
+{{with .PinnedIDsJSON}}
+<input type="hidden" id="chat-pinned-ids" name="pinned_ids" value="{{.}}" hx-swap-oob="true">
+{{end}}
 {{with .Result}}
 <div class="chat-wrap">
   <div class="chat-bubble chat-bubble-user">{{$.Question}}</div>
