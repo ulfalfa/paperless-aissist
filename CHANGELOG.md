@@ -1,3 +1,10 @@
+# [0.10.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.9.0...v0.10.0) (2026-04-13)
+
+
+### Features
+
+* model comparison tool, per-call model overrides, nav restructure ([b7176cc](https://gitlab.com/ulfalfa/paperless-aissist/commit/b7176cc1e74da5012d4f8278a2a675004a957c5a))
+
 # [0.9.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.8.0...v0.9.0) (2026-04-11)
 
 
