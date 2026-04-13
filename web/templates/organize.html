@@ -1,0 +1,77 @@
+{{define "content"}}
+<h2 style="margin-bottom:0.25rem;">Organize</h2>
+<p style="color:var(--pico-muted-color); margin-bottom:1.5rem;">
+  Review and clean up tags and correspondents without AI. Delete unused entries or merge duplicates.
+</p>
+
+<div role="group" style="margin-bottom:1.5rem; width:fit-content;">
+  <button hx-get="/ui/organize/items/tags"
+          hx-target="#organize-items"
+          hx-swap="outerHTML"
+          hx-indicator="#organize-spinner">
+    Tags
+  </button>
+  <button hx-get="/ui/organize/items/correspondents"
+          hx-target="#organize-items"
+          hx-swap="outerHTML"
+          hx-indicator="#organize-spinner">
+    Correspondents
+  </button>
+  <button hx-get="/ui/organize/items/document_types"
+          hx-target="#organize-items"
+          hx-swap="outerHTML"
+          hx-indicator="#organize-spinner">
+    Document Types
+  </button>
+  <span id="organize-spinner" class="htmx-indicator spinner" style="margin-left:0.5rem;">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+  </span>
+</div>
+
+{{template "organize_items.html" .Data}}
+
+<script>
+(function() {
+  function updateBulkBar() {
+    var checked = document.querySelectorAll('#organize-items .row-check:checked');
+    var bar = document.getElementById('organize-bulk-bar');
+    if (!bar) return;
+    bar.style.display = checked.length > 0 ? 'flex' : 'none';
+    var countEl = document.getElementById('organize-sel-count');
+    if (countEl) countEl.textContent = checked.length + ' selected';
+
+    // Hide already-selected options in the merge target dropdown
+    var selectedVals = Array.from(checked).map(function(c) { return c.value; });
+    var target = document.getElementById('organize-merge-target');
+    if (target) {
+      Array.from(target.options).forEach(function(opt) {
+        opt.hidden = selectedVals.indexOf(opt.value) !== -1;
+      });
+      // Ensure a valid option is selected
+      if (target.options[target.selectedIndex] && target.options[target.selectedIndex].hidden) {
+        var first = Array.from(target.options).find(function(o) { return !o.hidden; });
+        if (first) target.value = first.value;
+      }
+    }
+  }
+
+  // Event delegation — works after HTMX swaps too
+  document.addEventListener('change', function(e) {
+    if (e.target && e.target.id === 'select-all-organize') {
+      var all = document.querySelectorAll('#organize-items .row-check');
+      all.forEach(function(c) { c.checked = e.target.checked; });
+    }
+    if (e.target && (e.target.classList.contains('row-check') || e.target.id === 'select-all-organize')) {
+      updateBulkBar();
+    }
+  });
+
+  // Reset bulk bar after every HTMX swap into #organize-items
+  document.addEventListener('htmx:afterSettle', function(e) {
+    if (e.detail && e.detail.target && e.detail.target.id === 'organize-items') {
+      updateBulkBar();
+    }
+  });
+})();
+</script>
+{{end}}

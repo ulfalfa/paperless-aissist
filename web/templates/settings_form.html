@@ -41,6 +41,22 @@
       Strict Metadata (don't create new tags/correspondents/types)
     </label>
   </article>
+  <article>
+    <header>Model Tuning <small style="font-weight:normal;font-size:0.8em">(0 = Ollama default)</small></header>
+    <div class="grid">
+      <label>Temperature<input type="number" name="temperature" value="{{$cfg.Temperature}}" step="0.01" min="0" max="2" placeholder="0 = default"></label>
+      <label>Top K<input type="number" name="topK" value="{{$cfg.TopK}}" min="0" placeholder="0 = default"></label>
+      <label>Top P<input type="number" name="topP" value="{{$cfg.TopP}}" step="0.01" min="0" max="1" placeholder="0 = default"></label>
+    </div>
+    <div class="grid">
+      <label>Repeat Penalty<input type="number" name="repeatPenalty" value="{{$cfg.RepeatPenalty}}" step="0.01" min="0" placeholder="0 = default"></label>
+      <label>Num Ctx (context window)<input type="number" name="numCtx" value="{{$cfg.NumCtx}}" min="0" placeholder="0 = default"></label>
+    </div>
+    <label>
+      <input type="checkbox" name="think" {{if $cfg.Think}}checked{{end}}>
+      Think mode (extended reasoning, models that support it)
+    </label>
+  </article>
   <button type="submit">Save Settings</button>
 </form>
 

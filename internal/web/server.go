@@ -139,6 +139,7 @@ func init() {
 		"templates/chat_answer.html",
 		"templates/chat_loading.html",
 		"templates/prompt_entries.html",
+		"templates/test_result.html",
 	))
 }
 
@@ -157,6 +158,7 @@ func pageTmpl(page string) *template.Template {
 		"templates/chat_answer.html",
 		"templates/chat_loading.html",
 		"templates/prompt_entries.html",
+		"templates/test_result.html",
 		"templates/"+page,
 	))
 }
@@ -200,6 +202,7 @@ func NewRouter(am *auth.Manager, paperlessToken string) http.Handler {
 	r.Delete("/api/prompts", handleClearPromptLog)
 
 	// UI pages
+	r.Get("/test", handleTestPage)
 	r.Get("/", handleAnalyzePage)
 	r.Get("/scan", handleScanPage)
 	r.Get("/chat", handleChatPage)
@@ -220,6 +223,7 @@ func NewRouter(am *auth.Manager, paperlessToken string) http.Handler {
 	r.Get("/ui/chat/status/{jobID}", handleChatStatus)
 	r.Post("/ui/rag/index", handleIndexRun)
 	r.Get("/ui/rag/status", handleIndexStatus)
+	r.Post("/ui/test/compare", handleTestCompare)
 
 	return r
 }
@@ -321,13 +325,53 @@ type analyzeResponse struct {
 	Tags           []types.PaperlessItem    `json:"tags"`
 	Correspondents []types.PaperlessItem    `json:"correspondents"`
 	DocumentTypes  []types.PaperlessItem    `json:"documentTypes"`
+	EffectiveModel string                   `json:"effectiveModel"`
 }
 
-func analyzeDocument(id int) (*analyzeResponse, error) {
+func analyzeDocument(id int, override *types.ModelOptions) (*analyzeResponse, error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return nil, err
 	}
+	// Start from config defaults, then apply per-call overrides
+	opts := types.ModelOptions{
+		Temperature:   cfg.Temperature,
+		TopK:          cfg.TopK,
+		TopP:          cfg.TopP,
+		RepeatPenalty: cfg.RepeatPenalty,
+		NumCtx:        cfg.NumCtx,
+		Think:         cfg.Think,
+	}
+	if override != nil {
+		if override.Model != "" {
+			opts.Model = override.Model
+		}
+		if override.Temperature > 0 {
+			opts.Temperature = override.Temperature
+		}
+		if override.TopK > 0 {
+			opts.TopK = override.TopK
+		}
+		if override.TopP > 0 {
+			opts.TopP = override.TopP
+		}
+		if override.RepeatPenalty > 0 {
+			opts.RepeatPenalty = override.RepeatPenalty
+		}
+		if override.NumCtx > 0 {
+			opts.NumCtx = override.NumCtx
+		}
+		if override.Think {
+			opts.Think = true
+		}
+		opts.UnloadAfter = override.UnloadAfter
+	}
+
+	effectiveModel := cfg.OllamaModel
+	if opts.Model != "" {
+		effectiveModel = opts.Model
+	}
+
 	pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
 	oc := ollama.New(cfg.OllamaHost, cfg.OllamaModel)
 
@@ -349,7 +393,7 @@ func analyzeDocument(id int) (*analyzeResponse, error) {
 		DocumentTypes:  namesOf(docTypes),
 	}
 	prompt := ollama.BuildPrompt(promptTemplate, doc.Content, hints)
-	result, perf, err := oc.Analyze(prompt)
+	result, perf, err := oc.Analyze(prompt, opts)
 	if err != nil {
 		return nil, fmt.Errorf("ollama: %w", err)
 	}
@@ -364,6 +408,7 @@ func analyzeDocument(id int) (*analyzeResponse, error) {
 		Tags:           tags,
 		Correspondents: correspondents,
 		DocumentTypes:  docTypes,
+		EffectiveModel: effectiveModel,
 	}, nil
 }
 
@@ -375,7 +420,7 @@ func handleAnalyze(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, 400, err.Error())
 		return
 	}
-	resp, err := analyzeDocument(body.DocumentID)
+	resp, err := analyzeDocument(body.DocumentID, nil)
 	if err != nil {
 		jsonError(w, 500, err.Error())
 		return
@@ -471,7 +516,7 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	logger.Info(fmt.Sprintf("Webhook: analyzing document %d", body.DocumentID))
 
-	resp, err := analyzeDocument(body.DocumentID)
+	resp, err := analyzeDocument(body.DocumentID, nil)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Webhook: analysis failed for doc %d", body.DocumentID), err.Error())
 		jsonError(w, 500, err.Error())
@@ -904,7 +949,7 @@ func handleAnalyzeForm(w http.ResponseWriter, r *http.Request) {
 		renderPartial(w, "analyze_result.html", map[string]any{"Error": "Please enter a valid document ID"})
 		return
 	}
-	resp, err := analyzeDocument(id)
+	resp, err := analyzeDocument(id, nil)
 	if err != nil {
 		renderPartial(w, "analyze_result.html", map[string]any{"Error": err.Error()})
 		return
@@ -1036,6 +1081,12 @@ func handleSettingsForm(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	interval, _ := strconv.Atoi(r.FormValue("scanInterval"))
 	strict := r.FormValue("strictMetadata") == "on"
+	think := r.FormValue("think") == "on"
+	temperature, _ := strconv.ParseFloat(r.FormValue("temperature"), 64)
+	topK, _ := strconv.Atoi(r.FormValue("topK"))
+	topP, _ := strconv.ParseFloat(r.FormValue("topP"), 64)
+	repeatPenalty, _ := strconv.ParseFloat(r.FormValue("repeatPenalty"), 64)
+	numCtx, _ := strconv.Atoi(r.FormValue("numCtx"))
 	cfg := &types.AppConfig{
 		OllamaHost:     r.FormValue("ollamaHost"),
 		OllamaModel:    r.FormValue("ollamaModel"),
@@ -1049,6 +1100,12 @@ func handleSettingsForm(w http.ResponseWriter, r *http.Request) {
 		StrictMetadata: strict,
 		EmbedModel:     r.FormValue("embedModel"),
 		IndexPath:      r.FormValue("indexPath"),
+		Think:          think,
+		Temperature:    temperature,
+		TopK:           topK,
+		TopP:           topP,
+		RepeatPenalty:  repeatPenalty,
+		NumCtx:         numCtx,
 	}
 	if err := config.Save(cfg); err != nil {
 		renderPartial(w, "settings_form.html", map[string]any{"Config": cfg, "Error": err.Error()})
@@ -1197,6 +1254,73 @@ func handleIndexRun(w http.ResponseWriter, r *http.Request) {
 func handleIndexStatus(w http.ResponseWriter, r *http.Request) {
 	renderPartial(w, "index_status.html", map[string]any{
 		"Status": rag.Global().GetStatus(),
+	})
+}
+
+func handleTestPage(w http.ResponseWriter, r *http.Request) {
+	cfg, _ := config.Load()
+	oc := ollama.New(cfg.OllamaHost, cfg.OllamaModel)
+	models, _ := oc.ListModels()
+	render(w, "test.html", pageData{
+		ActivePage: "test",
+		Data: map[string]any{
+			"Config": cfg,
+			"Models": models,
+		},
+	})
+}
+
+func handleTestCompare(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	docIDStr := r.FormValue("documentId")
+	docID, err := strconv.Atoi(docIDStr)
+	if err != nil || docID <= 0 {
+		renderPartial(w, "test_result.html", map[string]any{"Error": "Please enter a valid document ID"})
+		return
+	}
+
+	// Field names in template use prefix like "a_model", "a_temperature", etc.
+	parseOpts := func(prefix string) types.ModelOptions {
+		temperature, _ := strconv.ParseFloat(r.FormValue(prefix+"temperature"), 64)
+		topK, _ := strconv.Atoi(r.FormValue(prefix + "topK"))
+		topP, _ := strconv.ParseFloat(r.FormValue(prefix+"topP"), 64)
+		repeatPenalty, _ := strconv.ParseFloat(r.FormValue(prefix+"repeatPenalty"), 64)
+		numCtx, _ := strconv.Atoi(r.FormValue(prefix + "numCtx"))
+		return types.ModelOptions{
+			Model:         r.FormValue(prefix + "model"),
+			Temperature:   temperature,
+			TopK:          topK,
+			TopP:          topP,
+			RepeatPenalty: repeatPenalty,
+			NumCtx:        numCtx,
+			Think:         r.FormValue(prefix+"think") == "on",
+			UnloadAfter:   true,
+		}
+	}
+
+	optsA := parseOpts("a_")
+	optsB := parseOpts("b_")
+
+	// Run sequentially so models don't compete for GPU memory
+	sideA := map[string]any{"Opts": optsA}
+	respA, errA := analyzeDocument(docID, &optsA)
+	if errA != nil {
+		sideA["Error"] = errA.Error()
+	} else {
+		sideA["Resp"] = respA
+	}
+
+	sideB := map[string]any{"Opts": optsB}
+	respB, errB := analyzeDocument(docID, &optsB)
+	if errB != nil {
+		sideB["Error"] = errB.Error()
+	} else {
+		sideB["Resp"] = respB
+	}
+
+	renderPartial(w, "test_result.html", map[string]any{
+		"A": sideA,
+		"B": sideB,
 	})
 }
 

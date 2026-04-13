@@ -132,7 +132,7 @@ func NewHTTPHandler() http.Handler {
 			DocumentTypes:  namesOf(docTypes),
 		}
 		prompt := ollama.BuildPrompt(promptTemplate, doc.Content, hints)
-		result, _, err := oc.Analyze(prompt)
+		result, _, err := oc.Analyze(prompt, types.ModelOptions{})
 		if err != nil {
 			return mcpsdk.NewToolResultError(err.Error()), nil
 		}

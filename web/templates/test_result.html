@@ -1,0 +1,88 @@
+{{define "test_result.html"}}
+{{if .Error}}
+  <p class="error-msg">{{.Error}}</p>
+{{else}}
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-top:1rem;">
+
+  {{/* Config A */}}
+  <div style="border:1px solid var(--pico-form-element-border-color); border-radius:var(--pico-border-radius); padding:1rem;">
+    <h4 style="margin-bottom:0.25rem;">Config A
+      <small style="font-weight:400; color:var(--pico-muted-color);">
+        {{if .A.Resp}}{{.A.Resp.EffectiveModel}}{{else if .A.Opts.Model}}{{.A.Opts.Model}}{{end}}
+      </small>
+    </h4>
+    <p style="font-size:0.8rem; color:var(--pico-muted-color); margin-bottom:0.75rem; font-family:monospace;">
+      {{if gt .A.Opts.Temperature 0.0}}temp={{.A.Opts.Temperature}} {{end -}}
+      {{if gt .A.Opts.TopK 0}}top_k={{.A.Opts.TopK}} {{end -}}
+      {{if gt .A.Opts.TopP 0.0}}top_p={{.A.Opts.TopP}} {{end -}}
+      {{if gt .A.Opts.RepeatPenalty 0.0}}rep={{.A.Opts.RepeatPenalty}} {{end -}}
+      {{if gt .A.Opts.NumCtx 0}}ctx={{.A.Opts.NumCtx}} {{end -}}
+      think={{.A.Opts.Think}}
+    </p>
+    {{if .A.Error}}
+      <p class="error-msg" style="font-size:0.85rem;">{{.A.Error}}</p>
+    {{else if .A.Resp}}
+      {{template "test_run_table.html" .A.Resp}}
+    {{end}}
+  </div>
+
+  {{/* Config B */}}
+  <div style="border:1px solid var(--pico-form-element-border-color); border-radius:var(--pico-border-radius); padding:1rem;">
+    <h4 style="margin-bottom:0.25rem;">Config B
+      <small style="font-weight:400; color:var(--pico-muted-color);">
+        {{if .B.Resp}}{{.B.Resp.EffectiveModel}}{{else if .B.Opts.Model}}{{.B.Opts.Model}}{{end}}
+      </small>
+    </h4>
+    <p style="font-size:0.8rem; color:var(--pico-muted-color); margin-bottom:0.75rem; font-family:monospace;">
+      {{if gt .B.Opts.Temperature 0.0}}temp={{.B.Opts.Temperature}} {{end -}}
+      {{if gt .B.Opts.TopK 0}}top_k={{.B.Opts.TopK}} {{end -}}
+      {{if gt .B.Opts.TopP 0.0}}top_p={{.B.Opts.TopP}} {{end -}}
+      {{if gt .B.Opts.RepeatPenalty 0.0}}rep={{.B.Opts.RepeatPenalty}} {{end -}}
+      {{if gt .B.Opts.NumCtx 0}}ctx={{.B.Opts.NumCtx}} {{end -}}
+      think={{.B.Opts.Think}}
+    </p>
+    {{if .B.Error}}
+      <p class="error-msg" style="font-size:0.85rem;">{{.B.Error}}</p>
+    {{else if .B.Resp}}
+      {{template "test_run_table.html" .B.Resp}}
+    {{end}}
+  </div>
+
+</div>
+{{end}}
+{{end}}
+
+{{define "test_run_table.html"}}
+<table style="font-size:0.85rem; margin:0;">
+  <tbody>
+    <tr>
+      <th style="width:8rem; font-weight:600; white-space:nowrap;">Title</th>
+      <td>{{.Analysis.Title}}</td>
+    </tr>
+    <tr>
+      <th style="font-weight:600;">Correspondent</th>
+      <td>{{if .Analysis.Correspondent}}{{deref .Analysis.Correspondent}}{{else}}<span style="color:var(--pico-muted-color);">—</span>{{end}}</td>
+    </tr>
+    <tr>
+      <th style="font-weight:600;">Type</th>
+      <td>{{if .Analysis.DocumentType}}{{deref .Analysis.DocumentType}}{{else}}<span style="color:var(--pico-muted-color);">—</span>{{end}}</td>
+    </tr>
+    <tr>
+      <th style="font-weight:600;">Date</th>
+      <td>{{if .Analysis.CreatedDate}}{{deref .Analysis.CreatedDate}}{{else}}<span style="color:var(--pico-muted-color);">—</span>{{end}}</td>
+    </tr>
+    <tr>
+      <th style="font-weight:600; vertical-align:top;">Tags</th>
+      <td>{{join .Analysis.Tags ", "}}</td>
+    </tr>
+    <tr>
+      <th style="font-weight:600;">Performance</th>
+      <td style="color:var(--pico-muted-color);">
+        {{printf "%.1f" (divf .Perf.TotalDurationMs 1000.0)}}s &middot;
+        {{printf "%.0f" .Perf.TokensPerSec}} tok/s &middot;
+        {{.Perf.GeneratedTokens}} tokens
+      </td>
+    </tr>
+  </tbody>
+</table>
+{{end}}

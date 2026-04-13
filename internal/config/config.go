@@ -19,6 +19,12 @@ func Load() (*types.AppConfig, error) {
 	interval, _ := strconv.Atoi(getEnv("SCAN_INTERVAL", "0"))
 	strict := strings.EqualFold(getEnv("STRICT_METADATA", "false"), "true")
 	logPrompts := strings.EqualFold(getEnv("LOG_PROMPTS", "false"), "true")
+	think := strings.EqualFold(getEnv("THINK", "false"), "true")
+	temperature, _ := strconv.ParseFloat(getEnv("TEMPERATURE", "0"), 64)
+	topK, _ := strconv.Atoi(getEnv("TOP_K", "0"))
+	topP, _ := strconv.ParseFloat(getEnv("TOP_P", "0"), 64)
+	repeatPenalty, _ := strconv.ParseFloat(getEnv("REPEAT_PENALTY", "0"), 64)
+	numCtx, _ := strconv.Atoi(getEnv("NUM_CTX", "0"))
 
 	return &types.AppConfig{
 		OllamaHost:     getEnv("OLLAMA_HOST", "http://localhost:11434"),
@@ -34,6 +40,12 @@ func Load() (*types.AppConfig, error) {
 		EmbedModel:     getEnv("EMBED_MODEL", "bge-m3:latest"),
 		IndexPath:      getEnv("INDEX_PATH", "./data"),
 		LogPrompts:     logPrompts,
+		Think:          think,
+		Temperature:    temperature,
+		TopK:           topK,
+		TopP:           topP,
+		RepeatPenalty:  repeatPenalty,
+		NumCtx:         numCtx,
 	}, nil
 }
 
@@ -53,6 +65,12 @@ func Save(cfg *types.AppConfig) error {
 		"EMBED_MODEL=" + cfg.EmbedModel,
 		"INDEX_PATH=" + cfg.IndexPath,
 		fmt.Sprintf("LOG_PROMPTS=%v", cfg.LogPrompts),
+		fmt.Sprintf("THINK=%v", cfg.Think),
+		fmt.Sprintf("TEMPERATURE=%v", cfg.Temperature),
+		fmt.Sprintf("TOP_K=%d", cfg.TopK),
+		fmt.Sprintf("TOP_P=%v", cfg.TopP),
+		fmt.Sprintf("REPEAT_PENALTY=%v", cfg.RepeatPenalty),
+		fmt.Sprintf("NUM_CTX=%d", cfg.NumCtx),
 	}
 	return os.WriteFile(envFile, []byte(strings.Join(lines, "\n")+"\n"), 0600)
 }

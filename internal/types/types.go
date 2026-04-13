@@ -116,6 +116,19 @@ type ScanStatus struct {
 	Done            int      `json:"done"`
 }
 
+// ModelOptions holds per-request Ollama inference parameters.
+// Zero values mean "use Ollama default".
+type ModelOptions struct {
+	Model         string  `json:"model"`
+	Temperature   float64 `json:"temperature"`
+	TopK          int     `json:"topK"`
+	TopP          float64 `json:"topP"`
+	RepeatPenalty float64 `json:"repeatPenalty"`
+	NumCtx        int     `json:"numCtx"`
+	Think         bool    `json:"think"`
+	UnloadAfter   bool    `json:"unloadAfter"` // if true, keep_alive=0 (unload immediately)
+}
+
 // AppConfig holds all runtime configuration
 type AppConfig struct {
 	OllamaHost     string `json:"ollamaHost"`
@@ -131,4 +144,11 @@ type AppConfig struct {
 	EmbedModel     string `json:"embedModel"`
 	IndexPath      string `json:"indexPath"`
 	LogPrompts     bool   `json:"logPrompts"`
+	// Model tuning (0 = use Ollama default)
+	Temperature   float64 `json:"temperature"`
+	TopK          int     `json:"topK"`
+	TopP          float64 `json:"topP"`
+	RepeatPenalty float64 `json:"repeatPenalty"`
+	NumCtx        int     `json:"numCtx"`
+	Think         bool    `json:"think"`
 }

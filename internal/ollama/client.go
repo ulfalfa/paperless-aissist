@@ -31,7 +31,8 @@ type generateRequest struct {
 	Prompt    string          `json:"prompt"`
 	Format    json.RawMessage `json:"format,omitempty"`
 	Stream    bool            `json:"stream"`
-	KeepAlive int             `json:"keep_alive"`             // -1 = keep loaded indefinitely
+	KeepAlive int             `json:"keep_alive"` // -1 = keep loaded indefinitely, 0 = unload
+	Think     *bool           `json:"think,omitempty"`
 	Options   map[string]any  `json:"options,omitempty"`
 }
 
@@ -45,11 +46,43 @@ type generateResponse struct {
 	EvalDuration       int64  `json:"eval_duration"`
 }
 
+// optsToRequest builds keepAlive, think flag and options map from ModelOptions.
+func optsToRequest(model string, opts types.ModelOptions) (string, int, *bool, map[string]any) {
+	if opts.Model != "" {
+		model = opts.Model
+	}
+	keepAlive := -1
+	if opts.UnloadAfter {
+		keepAlive = 0
+	}
+	think := opts.Think
+	m := map[string]any{}
+	if opts.Temperature > 0 {
+		m["temperature"] = opts.Temperature
+	}
+	if opts.TopK > 0 {
+		m["top_k"] = opts.TopK
+	}
+	if opts.TopP > 0 {
+		m["top_p"] = opts.TopP
+	}
+	if opts.RepeatPenalty > 0 {
+		m["repeat_penalty"] = opts.RepeatPenalty
+	}
+	if opts.NumCtx > 0 {
+		m["num_ctx"] = opts.NumCtx
+	}
+	if len(m) == 0 {
+		m = nil
+	}
+	return model, keepAlive, &think, m
+}
+
 // Analyze sends document text + hints to Ollama and returns structured metadata and performance info.
-func (c *Client) Analyze(prompt string) (*types.AnalysisResult, *types.OllamaPerf, error) {
-	result, perf, err := c.generate(prompt)
+func (c *Client) Analyze(prompt string, opts types.ModelOptions) (*types.AnalysisResult, *types.OllamaPerf, error) {
+	result, perf, err := c.generate(prompt, opts)
 	if err != nil {
-		result, perf, err = c.generate(prompt)
+		result, perf, err = c.generate(prompt, opts)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -57,13 +90,16 @@ func (c *Client) Analyze(prompt string) (*types.AnalysisResult, *types.OllamaPer
 	return result, perf, nil
 }
 
-func (c *Client) generate(prompt string) (*types.AnalysisResult, *types.OllamaPerf, error) {
+func (c *Client) generate(prompt string, opts types.ModelOptions) (*types.AnalysisResult, *types.OllamaPerf, error) {
+	model, keepAlive, think, options := optsToRequest(c.model, opts)
 	req := generateRequest{
-		Model:     c.model,
+		Model:     model,
 		Prompt:    prompt,
 		Format:    json.RawMessage(`"json"`),
 		Stream:    false,
-		KeepAlive: -1,
+		KeepAlive: keepAlive,
+		Think:     think,
+		Options:   options,
 	}
 	data, err := json.Marshal(req)
 	if err != nil {
@@ -224,11 +260,13 @@ type ToolCallFunction struct {
 }
 
 type chatRequest struct {
-	Model     string        `json:"model"`
-	Messages  []ChatMessage `json:"messages"`
-	Tools     []ChatTool    `json:"tools,omitempty"`
-	Stream    bool          `json:"stream"`
-	KeepAlive int           `json:"keep_alive"` // -1 = keep loaded indefinitely
+	Model     string         `json:"model"`
+	Messages  []ChatMessage  `json:"messages"`
+	Tools     []ChatTool     `json:"tools,omitempty"`
+	Stream    bool           `json:"stream"`
+	KeepAlive int            `json:"keep_alive"`
+	Think     *bool          `json:"think,omitempty"`
+	Options   map[string]any `json:"options,omitempty"`
 }
 
 type chatResponse struct {
@@ -257,7 +295,7 @@ func (c *Client) Chat(model string, messages []ChatMessage, tools []ChatTool) (*
 		Messages:  messages,
 		Tools:     tools,
 		Stream:    false,
-		KeepAlive: -1,
+		KeepAlive: -1, // keep loaded indefinitely for chat (performance)
 	}
 	data, _ := json.Marshal(req)
 	resp, err := c.http.Post(c.host+"/api/chat", "application/json", bytes.NewReader(data))

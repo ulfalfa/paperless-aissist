@@ -189,7 +189,7 @@ func RunOnce() {
 	count := 0
 	for _, doc := range docs {
 		prompt := ollama.BuildPrompt(promptTemplate, doc.Content, hints)
-		result, _, err := oc.Analyze(prompt)
+		result, _, err := oc.Analyze(prompt, types.ModelOptions{})
 		if err != nil {
 			msg := fmt.Sprintf("doc %d: %s", doc.ID, err.Error())
 			errs = append(errs, msg)

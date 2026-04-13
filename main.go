@@ -178,7 +178,7 @@ func analyze(cfg *types.AppConfig, text string) (*types.AnalysisResult, error) {
 		return nil, err
 	}
 	prompt := ollama.BuildPrompt(promptTemplate, text, types.Hints{})
-	result, _, err := oc.Analyze(prompt)
+	result, _, err := oc.Analyze(prompt, types.ModelOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +200,7 @@ func analyzeWithHints(cfg *types.AppConfig, pc *paperless.Client, doc *types.Pap
 		DocumentTypes:  namesOf(docTypes),
 	}
 	prompt := ollama.BuildPrompt(promptTemplate, doc.Content, hints)
-	result, _, err := oc.Analyze(prompt)
+	result, _, err := oc.Analyze(prompt, types.ModelOptions{})
 	if err != nil {
 		return nil, err
 	}

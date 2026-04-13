@@ -1,0 +1,27 @@
+{{define "organize_merge_row.html"}}
+<tr id="row-{{.Item.ID}}" style="background:var(--pico-form-element-background-color);">
+  <td style="padding-right:0;"></td>
+  <td>
+    <strong>{{.Item.Name}}</strong>
+    <small style="color:var(--pico-muted-color); margin-left:0.4rem;">merge into →</small>
+  </td>
+  <td style="text-align:right; color:var(--pico-muted-color);">{{.Item.DocumentCount}}</td>
+  <td>
+    <form hx-post="/ui/organize/merge/{{.Kind}}/{{.Item.ID}}"
+          hx-target="#organize-items"
+          hx-swap="outerHTML"
+          style="display:flex; gap:0.4rem; align-items:center; margin:0; justify-content:flex-end;">
+      <select name="target" required style="margin:0; padding:0.2rem 0.4rem; font-size:0.8rem; width:auto; min-width:8rem;">
+        {{range .Targets}}
+        <option value="{{.ID}}">{{.Name}}</option>
+        {{end}}
+      </select>
+      <button type="submit" style="padding:0.2rem 0.65rem; font-size:0.8rem; margin:0;">Merge</button>
+      <button type="button" class="secondary outline" style="padding:0.2rem 0.65rem; font-size:0.8rem; margin:0;"
+        hx-get="/ui/organize/items/{{.Kind}}"
+        hx-target="#organize-items"
+        hx-swap="outerHTML">Cancel</button>
+    </form>
+  </td>
+</tr>
+{{end}}
