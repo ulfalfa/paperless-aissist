@@ -1,3 +1,10 @@
+## [0.10.1](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.10.0...v0.10.1) (2026-04-13)
+
+
+### Bug Fixes
+
+* allow write access to app root dir in systemd unit ([4f9fb53](https://gitlab.com/ulfalfa/paperless-aissist/commit/4f9fb532bf3473f0c9af1fc8df2953c63ba722ea))
+
 # [0.10.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.9.0...v0.10.0) (2026-04-13)
 
 
