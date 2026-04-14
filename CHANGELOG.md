@@ -1,3 +1,10 @@
+# [0.13.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.12.0...v0.13.0) (2026-04-14)
+
+
+### Features
+
+* agentic RAG search, think toggle in chat, chat as start page ([afdf10f](https://gitlab.com/ulfalfa/paperless-aissist/commit/afdf10f87650d044eeeb3e2871a4ee08f0fb4dd5))
+
 # [0.12.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.11.0...v0.12.0) (2026-04-13)
 
 
