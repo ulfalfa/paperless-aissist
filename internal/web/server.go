@@ -203,7 +203,9 @@ func NewRouter(am *auth.Manager, paperlessToken string) http.Handler {
 
 	// UI pages
 	r.Get("/test", handleTestPage)
-	r.Get("/", handleAnalyzePage)
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/chat", http.StatusFound)
+	})
 	r.Get("/scan", handleScanPage)
 	r.Get("/chat", handleChatPage)
 	r.Get("/settings", handleSettingsPage)
@@ -1142,6 +1144,7 @@ func handleChatPage(w http.ResponseWriter, r *http.Request) {
 			"IndexStatus":  rag.Global().GetStatus(),
 			"Models":       models,
 			"DefaultModel": cfg.OllamaModel,
+			"ThinkDefault": cfg.Think,
 		},
 	})
 }
@@ -1167,6 +1170,13 @@ func handleChatForm(w http.ResponseWriter, r *http.Request) {
 		_ = json.Unmarshal([]byte(raw), &pinnedDocIDs)
 	}
 
+	// Think toggle: use form value if present, otherwise fall back to config default
+	var think *bool
+	if v := r.FormValue("think"); v != "" {
+		b := v == "true"
+		think = &b
+	}
+
 	jobID := newJobID()
 	job := &chatJob{
 		status:   "Starting…",
@@ -1187,7 +1197,7 @@ func handleChatForm(w http.ResponseWriter, r *http.Request) {
 			job.mu.Unlock()
 		}
 
-		result, err := rag.Global().Query(question, cfg.PaperlessURL, oc, cfg.EmbedModel, chatModel, history, pc, pinnedDocIDs, onStatus)
+		result, err := rag.Global().Query(question, cfg.PaperlessURL, oc, cfg.EmbedModel, chatModel, history, pc, pinnedDocIDs, think, onStatus)
 
 		job.mu.Lock()
 		defer job.mu.Unlock()
@@ -1369,7 +1379,7 @@ func handleSetupPage(w http.ResponseWriter, r *http.Request) {
 
 func handleSetupForm(w http.ResponseWriter, r *http.Request) {
 	if authManager.IsSetup() {
-		http.Redirect(w, r, "/", http.StatusFound)
+		http.Redirect(w, r, "/chat", http.StatusFound)
 		return
 	}
 	username := strings.TrimSpace(r.FormValue("username"))
@@ -1386,7 +1396,7 @@ func handleSetupForm(w http.ResponseWriter, r *http.Request) {
 	}
 	token, _ := authManager.Login(username, password)
 	authManager.SetCookie(w, token)
-	http.Redirect(w, r, "/", http.StatusFound)
+	http.Redirect(w, r, "/chat", http.StatusFound)
 }
 
 func handleLoginPage(w http.ResponseWriter, r *http.Request) {
@@ -1407,7 +1417,7 @@ func handleLoginForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	authManager.SetCookie(w, token)
-	http.Redirect(w, r, "/", http.StatusFound)
+	http.Redirect(w, r, "/chat", http.StatusFound)
 }
 
 func handleLogout(w http.ResponseWriter, r *http.Request) {

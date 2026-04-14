@@ -286,7 +286,8 @@ type ChatRoundPerf struct {
 
 // Chat sends messages to /api/chat and returns the assistant reply and perf metrics.
 // If the model requests tool calls they are returned in the message's ToolCalls field.
-func (c *Client) Chat(model string, messages []ChatMessage, tools []ChatTool) (*ChatMessage, *ChatRoundPerf, error) {
+// think controls the model's extended thinking mode; nil means use the server default.
+func (c *Client) Chat(model string, messages []ChatMessage, tools []ChatTool, think *bool) (*ChatMessage, *ChatRoundPerf, error) {
 	if model == "" {
 		model = c.model
 	}
@@ -296,6 +297,7 @@ func (c *Client) Chat(model string, messages []ChatMessage, tools []ChatTool) (*
 		Tools:     tools,
 		Stream:    false,
 		KeepAlive: -1, // keep loaded indefinitely for chat (performance)
+		Think:     think,
 	}
 	data, _ := json.Marshal(req)
 	resp, err := c.http.Post(c.host+"/api/chat", "application/json", bytes.NewReader(data))

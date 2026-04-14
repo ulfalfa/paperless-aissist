@@ -24,6 +24,7 @@
       <input type="hidden" name="chatModel" id="chat-model-hidden" value="{{.Data.DefaultModel}}">
       <input type="hidden" name="history" id="chat-history" value="[]">
       <input type="hidden" name="pinned_ids" id="chat-pinned-ids" value="[]">
+      <input type="hidden" name="think" id="chat-think-hidden" value="{{.Data.ThinkDefault}}">
       <div style="display: flex; gap: 0.75rem; align-items: flex-end;">
         <textarea id="question" name="question" rows="2"
                   placeholder="Frage stellen…"
@@ -35,7 +36,14 @@
             <option value="{{.}}" {{if eq . $.Data.DefaultModel}}selected{{end}}>{{.}}</option>
             {{end}}
           </select>
-          <button type="submit" style="margin: 0;">Send</button>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button type="submit" style="margin: 0; flex: 1;">Send</button>
+            <button type="button" id="think-toggle"
+                    style="margin: 0; padding: 0.4rem 0.6rem; font-size: 0.8rem; white-space: nowrap;"
+                    title="Thinking: off">
+              Thinking
+            </button>
+          </div>
         </div>
       </div>
     </form>
@@ -113,6 +121,27 @@
         htmx.trigger(form, 'submit');
       }
     });
+
+    // Think toggle
+    const thinkHidden = document.getElementById('chat-think-hidden');
+    const thinkBtn = document.getElementById('think-toggle');
+    function updateThinkBtn() {
+      const active = thinkHidden.value === 'true';
+      thinkBtn.classList.toggle('outline', !active);
+      thinkBtn.title = active ? 'Thinking aktiv — klicken zum Deaktivieren' : 'Thinking inaktiv — klicken zum Aktivieren';
+    }
+    updateThinkBtn();
+    thinkBtn.addEventListener('click', function() {
+      thinkHidden.value = thinkHidden.value === 'true' ? 'false' : 'true';
+      localStorage.setItem('paperless-chat-think', thinkHidden.value);
+      updateThinkBtn();
+    });
+    // Restore from localStorage
+    const savedThink = localStorage.getItem('paperless-chat-think');
+    if (savedThink !== null) {
+      thinkHidden.value = savedThink;
+      updateThinkBtn();
+    }
   })();
 </script>
 {{end}}
