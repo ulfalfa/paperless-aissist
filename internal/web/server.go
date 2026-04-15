@@ -210,6 +210,7 @@ func NewRouter(am *auth.Manager, paperlessToken string) http.Handler {
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/chat", http.StatusFound)
 	})
+	r.Get("/analyze", handleAnalyzePage)
 	r.Get("/scan", handleScanPage)
 	r.Get("/chat", handleChatPage)
 	r.Get("/settings", handleSettingsPage)
