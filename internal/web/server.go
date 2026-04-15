@@ -79,6 +79,10 @@ func init() {
 			}
 			return *i
 		},
+		"toJSON": func(v any) string {
+			b, _ := json.Marshal(v)
+			return string(b)
+		},
 		"join": strings.Join,
 		"map": func(pairs ...any) map[string]any {
 			m := make(map[string]any)

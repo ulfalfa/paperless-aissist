@@ -28,7 +28,7 @@
       </small>{{end}}
     </div>
     {{end}}
-    <div class="chat-markdown" style="line-height: 1.6; margin: 0;">{{.Answer}}</div>
+    <div class="chat-markdown" data-sources="{{.Sources | toJSON}}" style="line-height: 1.6; margin: 0;">{{.Answer}}</div>
     {{if .Sources}}
     <div style="margin-top: 0.75rem; padding-top: 0.6rem; border-top: 1px solid var(--pico-muted-border-color); display: flex; flex-wrap: wrap; gap: 0.4rem;">
       {{range .Sources}}

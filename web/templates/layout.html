@@ -11,11 +11,51 @@
   <script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script>
+    // Linkify document title mentions in rendered markdown
+    function linkifyDocRefs(el, sources) {
+      if (!sources || !sources.length) return;
+      var sorted = sources.slice().sort(function(a, b) { return b.title.length - a.title.length; });
+      function escHtml(s) {
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      }
+      function walk(node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          var text = node.textContent;
+          var html = escHtml(text);
+          var replaced = false;
+          for (var i = 0; i < sorted.length; i++) {
+            var src = sorted[i];
+            if (!src.title || src.title.length < 4) continue;
+            var pat = src.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            var re = new RegExp(pat, 'gi');
+            if (re.test(html)) {
+              html = html.replace(new RegExp(pat, 'gi'),
+                '<a href="' + escHtml(src.paperlessUrl) + '" target="_blank" class="doc-ref-link">' + escHtml(src.title) + '</a>');
+              replaced = true;
+            }
+          }
+          if (replaced) {
+            var span = document.createElement('span');
+            span.innerHTML = html;
+            node.parentNode.replaceChild(span, node);
+          }
+        } else if (node.nodeType === Node.ELEMENT_NODE &&
+                   node.tagName !== 'A' && node.tagName !== 'CODE' && node.tagName !== 'PRE') {
+          Array.from(node.childNodes).forEach(walk);
+        }
+      }
+      walk(el);
+    }
+
     // Render any unprocessed .chat-markdown elements after each HTMX swap
     document.addEventListener('htmx:afterSettle', function() {
       document.querySelectorAll('.chat-markdown:not([data-rendered])').forEach(function(el) {
         el.innerHTML = marked.parse(el.textContent);
         el.setAttribute('data-rendered', '1');
+        try {
+          var sources = JSON.parse(el.getAttribute('data-sources') || '[]');
+          linkifyDocRefs(el, sources);
+        } catch(e) {}
       });
     });
   </script>
@@ -107,6 +147,10 @@
                padding: 0.25rem 0.5rem; width: 100%; box-sizing: border-box; }
     .tagify:focus-within { border-color: var(--pico-primary); box-shadow: 0 0 0 var(--pico-outline-width) var(--pico-primary-focus); }
     label:has(.tagify) { margin-bottom: var(--pico-spacing); }
+
+    /* ── Doc reference links in chat ── */
+    .doc-ref-link { color: var(--pico-primary); text-decoration: underline dotted; text-underline-offset: 2px; }
+    .doc-ref-link:hover { text-decoration: underline; }
 
     /* ── Mobile ── */
     @media (max-width: 768px) {
