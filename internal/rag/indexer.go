@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -97,6 +98,32 @@ func (idx *Indexer) RunOnce(full bool) {
 		return
 	}
 
+	tags, err := pc.ListTags()
+	if err != nil {
+		logger.Warn("RAG indexer: failed to fetch tags", err.Error())
+	}
+	correspondents, err := pc.ListCorrespondents()
+	if err != nil {
+		logger.Warn("RAG indexer: failed to fetch correspondents", err.Error())
+	}
+	docTypes, err := pc.ListDocumentTypes()
+	if err != nil {
+		logger.Warn("RAG indexer: failed to fetch document types", err.Error())
+	}
+
+	tagNames := make(map[int]string, len(tags))
+	for _, t := range tags {
+		tagNames[t.ID] = t.Name
+	}
+	correspondentNames := make(map[int]string, len(correspondents))
+	for _, c := range correspondents {
+		correspondentNames[c.ID] = c.Name
+	}
+	docTypeNames := make(map[int]string, len(docTypes))
+	for _, dt := range docTypes {
+		docTypeNames[dt.ID] = dt.Name
+	}
+
 	if full {
 		logger.Info(fmt.Sprintf("RAG indexer: full re-index of %d documents", len(docs)))
 		if err := idx.store.Reset(); err != nil {
@@ -149,7 +176,7 @@ func (idx *Indexer) RunOnce(full bool) {
 
 	ctx := context.Background()
 	for _, doc := range toIndex {
-		text := buildIndexText(doc)
+		text := buildIndexText(doc, tagNames, correspondentNames, docTypeNames)
 		emb, err := oc.Embed(cfg.EmbedModel, text)
 		if err != nil {
 			logger.Error(fmt.Sprintf("RAG indexer: embed doc %d failed", doc.ID), err.Error())
@@ -176,10 +203,37 @@ func (idx *Indexer) RunOnce(full bool) {
 }
 
 // buildIndexText creates the text to embed for a document.
-func buildIndexText(doc types.PaperlessDocument) string {
+func buildIndexText(doc types.PaperlessDocument, tagNames, correspondentNames, docTypeNames map[int]string) string {
 	content := doc.Content
 	if len(content) > maxContentBytes {
 		content = content[:maxContentBytes]
 	}
-	return "Title: " + doc.Title + "\n\n" + content
+
+	meta := "Title: " + doc.Title
+	if doc.Created != "" {
+		meta += "\nDate: " + doc.Created
+	}
+	if doc.Correspondent != nil {
+		if name, ok := correspondentNames[*doc.Correspondent]; ok {
+			meta += "\nCorrespondent: " + name
+		}
+	}
+	if doc.DocumentType != nil {
+		if name, ok := docTypeNames[*doc.DocumentType]; ok {
+			meta += "\nDocument Type: " + name
+		}
+	}
+	if len(doc.Tags) > 0 {
+		var tagList []string
+		for _, id := range doc.Tags {
+			if name, ok := tagNames[id]; ok {
+				tagList = append(tagList, name)
+			}
+		}
+		if len(tagList) > 0 {
+			meta += "\nTags: " + strings.Join(tagList, ", ")
+		}
+	}
+
+	return meta + "\n\n" + content
 }
