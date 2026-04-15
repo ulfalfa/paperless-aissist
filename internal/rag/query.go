@@ -51,7 +51,7 @@ func (idx *Indexer) Query(
 				logger.Warn(fmt.Sprintf("RAG: failed to load pinned doc %d", id), err.Error())
 				continue
 			}
-			parts = append(parts, fmt.Sprintf("[pinned] %s\n%s", doc.Title, doc.Content))
+			parts = append(parts, fmt.Sprintf("[ID:%d] %s\n%s", doc.ID, doc.Title, doc.Content))
 			sources = append(sources, types.ChatSource{
 				ID:           doc.ID,
 				Title:        doc.Title,
@@ -63,7 +63,9 @@ func (idx *Indexer) Query(
 
 	// ── 2. Build system prompt ────────────────────────────────────────────────
 	systemContent := "You are an assistant for a personal document archive.\n" +
-		"Be concise and specific. Always respond in the same language the user used.\n\n"
+		"Be concise and specific. Always respond in the same language the user used.\n" +
+		"When your answer is based on specific documents, always mention their exact title in your response " +
+		"so the user can identify them. Use the title exactly as it appears in the document metadata.\n\n"
 
 	if pinnedContext != "" {
 		systemContent += "The following documents were already found in this conversation. " +
@@ -151,10 +153,10 @@ func (idx *Indexer) Query(
 						text = "No documents found for this query."
 					} else {
 						var parts []string
-						for i, r := range results {
+						for _, r := range results {
 							title := r.Metadata["title"]
 							docID, _ := strconv.Atoi(r.ID)
-							parts = append(parts, fmt.Sprintf("[%d] %s\n%s", i+1, title, r.Content))
+							parts = append(parts, fmt.Sprintf("[ID:%d] %s\n%s", docID, title, r.Content))
 							sources = appendUniqueSources(sources, []types.ChatSource{{
 								ID:           docID,
 								Title:        title,
