@@ -1,3 +1,10 @@
+## [0.15.1](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.15.0...v0.15.1) (2026-04-15)
+
+
+### Bug Fixes
+
+* instruct LLM to mention document titles and include doc IDs in RAG context ([21c5558](https://gitlab.com/ulfalfa/paperless-aissist/commit/21c5558ab094074c6db2f40079a18439a573921e))
+
 # [0.15.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.14.0...v0.15.0) (2026-04-15)
 
 
