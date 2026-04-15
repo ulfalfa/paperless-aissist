@@ -1,3 +1,10 @@
+## [0.16.1](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.16.0...v0.16.1) (2026-04-15)
+
+
+### Bug Fixes
+
+* restore /analyze route and fix nav link href ([dce7a83](https://gitlab.com/ulfalfa/paperless-aissist/commit/dce7a837b010f4d683123ce84b80162a00a8b0ac))
+
 # [0.16.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.15.1...v0.16.0) (2026-04-15)
 
 
