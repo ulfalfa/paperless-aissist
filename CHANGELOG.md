@@ -1,3 +1,10 @@
+# [0.15.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.14.0...v0.15.0) (2026-04-15)
+
+
+### Features
+
+* linkify document titles in chat answers to paperless-ngx ([1c6db02](https://gitlab.com/ulfalfa/paperless-aissist/commit/1c6db02d46025247edc70d745ded85e800e7b1a7))
+
 # [0.14.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.13.0...v0.14.0) (2026-04-15)
 
 
