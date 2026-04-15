@@ -1,3 +1,10 @@
+# [0.14.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.13.0...v0.14.0) (2026-04-15)
+
+
+### Features
+
+* responsive mobile UI with hamburger sidebar ([17690f6](https://gitlab.com/ulfalfa/paperless-aissist/commit/17690f6a6ad61471ea58ed006a1b523fe0700da0))
+
 # [0.13.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.12.0...v0.13.0) (2026-04-14)
 
 
