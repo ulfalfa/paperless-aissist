@@ -1,3 +1,10 @@
+# [0.16.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.15.1...v0.16.0) (2026-04-15)
+
+
+### Features
+
+* include date, correspondent, document type and tags in RAG index text ([75ff86a](https://gitlab.com/ulfalfa/paperless-aissist/commit/75ff86aa333ce1116178a3cae296f63e16936a3e))
+
 ## [0.15.1](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.15.0...v0.15.1) (2026-04-15)
 
 
