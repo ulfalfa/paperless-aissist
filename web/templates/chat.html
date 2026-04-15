@@ -5,7 +5,7 @@
 {{define "content"}}
 <h2>Chat with Documents</h2>
 
-<div style="display: flex; flex-direction: column; height: calc(100vh - 320px); min-height: 300px;">
+<div class="chat-container">
 
   <!-- Message history -->
   <div id="chat-messages"
@@ -25,18 +25,18 @@
       <input type="hidden" name="history" id="chat-history" value="[]">
       <input type="hidden" name="pinned_ids" id="chat-pinned-ids" value="[]">
       <input type="hidden" name="think" id="chat-think-hidden" value="{{.Data.ThinkDefault}}">
-      <div style="display: flex; gap: 0.75rem; align-items: flex-end;">
+      <div class="chat-input-row">
         <textarea id="question" name="question" rows="2"
                   placeholder="Frage stellen…"
                   style="flex: 1; resize: none; margin: 0;"
                   required></textarea>
-        <div style="display: flex; flex-direction: column; gap: 0.5rem; min-width: 160px;">
+        <div class="chat-input-controls">
           <select id="chat-model" style="margin: 0; font-size: 0.85rem; padding: 0.4rem 0.6rem;">
             {{range .Data.Models}}
             <option value="{{.}}" {{if eq . $.Data.DefaultModel}}selected{{end}}>{{.}}</option>
             {{end}}
           </select>
-          <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <div class="chat-input-actions">
             <button type="submit" style="margin: 0; flex: 1;">Send</button>
             <button type="button" id="think-toggle"
                     style="margin: 0; padding: 0.4rem 0.6rem; font-size: 0.8rem; white-space: nowrap;"

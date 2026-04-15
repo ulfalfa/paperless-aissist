@@ -29,7 +29,8 @@
       background: var(--pico-primary-background);
       display: flex; flex-direction: column;
       position: fixed; top: 0; left: 0; height: 100vh;
-      padding: 0; z-index: 100;
+      padding: 0; z-index: 200;
+      transition: left 0.25s ease;
     }
     .sidebar-brand {
       color: #fff; font-weight: 700; font-size: 0.95rem;
@@ -50,8 +51,41 @@
     .sidebar nav a svg { flex-shrink: 0; opacity: 0.85; }
     .sidebar nav a.active svg { opacity: 1; }
 
+    /* ── Sidebar overlay (mobile) ── */
+    .sidebar-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 199;
+    }
+    .sidebar-overlay.open { display: block; }
+
+    /* ── Mobile top bar ── */
+    .mobile-topbar {
+      display: none;
+      align-items: center; gap: 0.75rem;
+      background: var(--pico-primary-background);
+      color: #fff; padding: 0.75rem 1rem;
+      position: sticky; top: 0; z-index: 100;
+      margin: -1rem -1rem 1rem;
+    }
+    .mobile-topbar-brand { font-weight: 700; font-size: 0.95rem; flex: 1; }
+    .hamburger {
+      background: transparent; border: none; cursor: pointer;
+      color: #fff; padding: 0.25rem; display: flex; align-items: center;
+    }
+
     /* ── Main ── */
     .main-content { margin-left: 210px; flex: 1; padding: 2rem 2.5rem; }
+
+    /* ── Chat ── */
+    .chat-container { display: flex; flex-direction: column; height: calc(100vh - 320px); min-height: 300px; }
+    .chat-input-row { display: flex; gap: 0.75rem; align-items: flex-end; }
+    .chat-input-controls { display: flex; flex-direction: column; gap: 0.5rem; min-width: 160px; }
+    .chat-input-actions { display: flex; gap: 0.5rem; align-items: center; }
+
+    /* ── Responsive grid ── */
+    .responsive-grid { display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 2rem; }
 
     /* ── Utilities ── */
     .flash { background: var(--pico-ins-color); color: #fff; padding: 0.5rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
@@ -73,11 +107,27 @@
                padding: 0.25rem 0.5rem; width: 100%; box-sizing: border-box; }
     .tagify:focus-within { border-color: var(--pico-primary); box-shadow: 0 0 0 var(--pico-outline-width) var(--pico-primary-focus); }
     label:has(.tagify) { margin-bottom: var(--pico-spacing); }
+
+    /* ── Mobile ── */
+    @media (max-width: 768px) {
+      .sidebar { left: -220px; }
+      .sidebar.open { left: 0; }
+      .mobile-topbar { display: flex; }
+      .main-content { margin-left: 0; padding: 1rem; }
+      .chat-container { height: calc(100vh - 240px); }
+      .chat-input-row { flex-direction: column; }
+      .chat-input-controls { min-width: unset; flex-direction: row; flex-wrap: wrap; align-items: center; }
+      .chat-input-controls select { flex: 1; min-width: 0; }
+      .chat-input-actions { flex: none; }
+      .responsive-grid { grid-template-columns: 1fr; }
+      .grid[style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+    }
   </style>
 </head>
 <body>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
 <div class="app-layout">
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
       paperless-aissist
       <small>AI for paperless-ngx</small>
@@ -126,9 +176,32 @@
     </div>
   </aside>
   <main class="main-content">
+    <div class="mobile-topbar">
+      <button class="hamburger" id="sidebar-toggle" aria-label="Navigation öffnen">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="mobile-topbar-brand">paperless-aissist</span>
+    </div>
     {{template "content" .}}
   </main>
 </div>
+<script>
+  (function() {
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.getElementById('sidebar-overlay');
+    var toggle = document.getElementById('sidebar-toggle');
+    function openSidebar() { sidebar.classList.add('open'); overlay.classList.add('open'); }
+    function closeSidebar() { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
+    if (toggle) toggle.addEventListener('click', openSidebar);
+    if (overlay) overlay.addEventListener('click', closeSidebar);
+    // Close sidebar on nav link click (mobile)
+    if (sidebar) {
+      sidebar.querySelectorAll('nav a').forEach(function(a) {
+        a.addEventListener('click', closeSidebar);
+      });
+    }
+  })();
+</script>
 </body>
 </html>
 {{end}}
