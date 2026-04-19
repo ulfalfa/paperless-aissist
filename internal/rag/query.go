@@ -110,6 +110,7 @@ func (idx *Indexer) Query(
 		perf.LLMRounds++
 		if rp != nil {
 			perf.GeneratedTokens += rp.GeneratedTokens
+			perf.PromptTokens = rp.PromptTokens // last round is most representative (longest context)
 			perf.TokensPerSec = rp.TokensPerSec
 		}
 

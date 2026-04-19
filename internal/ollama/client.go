@@ -280,6 +280,7 @@ type chatResponse struct {
 // ChatRoundPerf holds per-round LLM performance metrics.
 type ChatRoundPerf struct {
 	GeneratedTokens int
+	PromptTokens    int
 	TokensPerSec    float64
 	TotalMs         float64
 }
@@ -315,6 +316,7 @@ func (c *Client) Chat(model string, messages []ChatMessage, tools []ChatTool, th
 	}
 	perf := &ChatRoundPerf{
 		GeneratedTokens: cr.EvalCount,
+		PromptTokens:    cr.PromptEvalCount,
 		TotalMs:         float64(cr.TotalDuration) / 1e6,
 	}
 	if cr.EvalDuration > 0 {

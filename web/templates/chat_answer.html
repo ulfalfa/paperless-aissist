@@ -25,6 +25,7 @@
         {{if gt .GeneratedTokens 0}} · {{.GeneratedTokens}} tok{{end}}
         {{if gt .TokensPerSec 0.0}} · {{printf "%.0f" .TokensPerSec}} tok/s{{end}}
         {{if gt .ToolCalls 0}} · {{.ToolCalls}} tool call{{if gt .ToolCalls 1}}s{{end}}{{end}}
+        {{if gt .PromptTokens 0}} · <span title="Tokens im Kontext (Prompt-Länge)" style="color:{{if gt .PromptTokens 50000}}var(--pico-color-red-500){{else if gt .PromptTokens 20000}}var(--pico-color-orange-500){{else}}var(--pico-muted-color){{end}}">ctx {{.PromptTokens}}</span>{{end}}
       </small>{{end}}
     </div>
     {{end}}

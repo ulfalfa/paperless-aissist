@@ -83,6 +83,7 @@ type ConversationMessage struct {
 type ChatPerf struct {
 	TotalMs         float64 `json:"totalMs"`
 	GeneratedTokens int     `json:"generatedTokens"`
+	PromptTokens    int     `json:"promptTokens"`
 	TokensPerSec    float64 `json:"tokensPerSec"`
 	ToolCalls       int     `json:"toolCalls"`
 	LLMRounds       int     `json:"llmRounds"`
