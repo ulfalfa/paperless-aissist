@@ -1,3 +1,10 @@
+# [0.18.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.17.2...v0.18.0) (2026-04-19)
+
+
+### Features
+
+* show prompt token count (context usage) in chat UI ([5c94918](https://gitlab.com/ulfalfa/paperless-aissist/commit/5c94918566ca7b05746e251e63a83bcb86f3c0f7))
+
 ## [0.17.2](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.17.1...v0.17.2) (2026-04-19)
 
 
