@@ -1,3 +1,10 @@
+# [0.17.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.16.1...v0.17.0) (2026-04-19)
+
+
+### Features
+
+* round-robin pinned doc buffer and allow re-search on new topics ([481e5e4](https://gitlab.com/ulfalfa/paperless-aissist/commit/481e5e4cb57644f577531caec9f2c4701f52656a))
+
 ## [0.16.1](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.16.0...v0.16.1) (2026-04-15)
 
 
