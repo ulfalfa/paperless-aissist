@@ -73,6 +73,12 @@ func init() {
 			}
 			return a / b
 		},
+		"percent": func(a, b int) float64 {
+			if b == 0 {
+				return 0
+			}
+			return float64(a) / float64(b) * 100
+		},
 		"derefInt": func(i *int) int {
 			if i == nil {
 				return 0

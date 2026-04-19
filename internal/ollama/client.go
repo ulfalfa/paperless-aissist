@@ -7,15 +7,17 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/ulf/paperless-aissist/internal/types"
 )
 
 // Client sends prompts to Ollama.
 type Client struct {
-	host  string
-	model string
-	http  *http.Client
+	host      string
+	model     string
+	http      *http.Client
+	ctxCache  sync.Map // model name → int (num_ctx)
 }
 
 func New(host, model string) *Client {
@@ -24,6 +26,47 @@ func New(host, model string) *Client {
 		model: model,
 		http:  &http.Client{},
 	}
+}
+
+// ContextSize returns the effective context window size for the given model.
+// It calls /api/show once and caches the result per model name.
+func (c *Client) ContextSize(model string) int {
+	if model == "" {
+		model = c.model
+	}
+	if v, ok := c.ctxCache.Load(model); ok {
+		return v.(int)
+	}
+	size := c.fetchContextSize(model)
+	c.ctxCache.Store(model, size)
+	return size
+}
+
+type showResponse struct {
+	ModelInfo  map[string]any `json:"model_info"`
+	Parameters string         `json:"parameters"`
+}
+
+func (c *Client) fetchContextSize(model string) int {
+	body, _ := json.Marshal(map[string]string{"name": model})
+	resp, err := c.http.Post(c.host+"/api/show", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return 0
+	}
+	defer resp.Body.Close()
+	var sr showResponse
+	if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
+		return 0
+	}
+	// Look for any key ending in ".context_length" (llama, qwen2, gemma, etc.)
+	for k, v := range sr.ModelInfo {
+		if strings.HasSuffix(k, ".context_length") {
+			if n, ok := v.(float64); ok && n > 0 {
+				return int(n)
+			}
+		}
+	}
+	return 0
 }
 
 type generateRequest struct {

@@ -95,7 +95,7 @@ func (idx *Indexer) Query(
 	const maxRounds = 4
 	var answer string
 	start := time.Now()
-	perf := &types.ChatPerf{}
+	perf := &types.ChatPerf{ContextSize: oc.ContextSize(chatModel)}
 	ragMeta := map[string]string{"pinned_count": strconv.Itoa(len(pinnedDocIDs))}
 
 	for round := 0; round < maxRounds; round++ {

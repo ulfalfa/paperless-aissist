@@ -25,7 +25,7 @@
         {{if gt .GeneratedTokens 0}} · {{.GeneratedTokens}} tok{{end}}
         {{if gt .TokensPerSec 0.0}} · {{printf "%.0f" .TokensPerSec}} tok/s{{end}}
         {{if gt .ToolCalls 0}} · {{.ToolCalls}} tool call{{if gt .ToolCalls 1}}s{{end}}{{end}}
-        {{if gt .PromptTokens 0}} · <span title="Tokens im Kontext (Prompt-Länge)" style="color:{{if gt .PromptTokens 50000}}var(--pico-color-red-500){{else if gt .PromptTokens 20000}}var(--pico-color-orange-500){{else}}var(--pico-muted-color){{end}}">ctx {{.PromptTokens}}</span>{{end}}
+        {{if gt .PromptTokens 0}} · {{if gt .ContextSize 0}}{{$pct := percent .PromptTokens .ContextSize}}<span title="Kontext: {{.PromptTokens}} / {{.ContextSize}} Tokens ({{printf "%.0f" $pct}}%)" style="display:inline-flex; align-items:center; gap:0.3rem; color:{{if ge $pct 80.0}}var(--pico-color-red-500){{else if ge $pct 50.0}}var(--pico-color-orange-500){{else}}var(--pico-muted-color){{end}}">ctx <span style="display:inline-block; width:3rem; height:0.5rem; background:var(--pico-muted-border-color); border-radius:0.25rem; overflow:hidden; vertical-align:middle;"><span style="display:block; height:100%; width:{{printf "%.0f" $pct}}%; background:{{if ge $pct 80.0}}var(--pico-color-red-500){{else if ge $pct 50.0}}var(--pico-color-orange-500){{else}}var(--pico-primary){{end}};"></span></span> {{printf "%.0f" $pct}}%</span>{{else}}<span title="Tokens im Kontext (Prompt-Länge)" style="color:var(--pico-muted-color)">ctx {{.PromptTokens}}</span>{{end}}{{end}}
       </small>{{end}}
     </div>
     {{end}}
