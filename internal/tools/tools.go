@@ -107,10 +107,10 @@ func Execute(name string, args json.RawMessage, pc *paperless.Client, baseURL st
 		}
 		parts := make([]string, len(docs))
 		for i, d := range docs {
-			parts[i] = fmt.Sprintf("ID:%d %q", d.ID, d.Title)
+			parts[i] = fmt.Sprintf("[ID:%d] %s\n%s", d.ID, d.Title, d.Content)
 		}
 		return &Result{
-			Text:    fmt.Sprintf("%d results: %s", len(docs), strings.Join(parts, "; ")),
+			Text:    strings.Join(parts, "\n\n"),
 			Data:    docs,
 			Sources: docsToSources(docs),
 		}, nil
@@ -126,12 +126,8 @@ func Execute(name string, args json.RawMessage, pc *paperless.Client, baseURL st
 		if err != nil {
 			return nil, err
 		}
-		preview := doc.Content
-		if len(preview) > 500 {
-			preview = preview[:500] + "..."
-		}
 		return &Result{
-			Text:    fmt.Sprintf("ID:%d Title:%q Created:%s\n%s", doc.ID, doc.Title, doc.Created, preview),
+			Text:    fmt.Sprintf("ID:%d Title:%q Created:%s\n%s", doc.ID, doc.Title, doc.Created, doc.Content),
 			Data:    doc,
 			Sources: []types.ChatSource{{ID: doc.ID, Title: doc.Title, PaperlessURL: docURL(doc.ID)}},
 		}, nil
