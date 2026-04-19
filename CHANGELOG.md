@@ -1,3 +1,10 @@
+## [0.17.2](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.17.1...v0.17.2) (2026-04-19)
+
+
+### Bug Fixes
+
+* pass full document content to LLM in get_document and search_documents ([caac884](https://gitlab.com/ulfalfa/paperless-aissist/commit/caac884085a1604c692a51161f8d42a9d0d8c63d))
+
 ## [0.17.1](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.17.0...v0.17.1) (2026-04-19)
 
 
