@@ -1213,18 +1213,34 @@ func handleChatForm(w http.ResponseWriter, r *http.Request) {
 		} else {
 			logger.Info(fmt.Sprintf("RAG query answered with %d sources", len(result.Sources)))
 			historyJSON, _ := json.Marshal(result.History)
-			// Accumulate all source IDs for pinning in follow-up queries
-			allPinnedIDs := pinnedDocIDs
+			// Round-robin pinned doc buffer (max 10): new sources take priority,
+			// old pinned IDs fill the remainder.
+			const maxPinnedDocs = 10
+			oldSet := make(map[int]bool, len(pinnedDocIDs))
+			for _, id := range pinnedDocIDs {
+				oldSet[id] = true
+			}
+			var newIDs []int
 			for _, s := range result.Sources {
-				found := false
-				for _, id := range allPinnedIDs {
-					if id == s.ID {
-						found = true
-						break
-					}
+				if !oldSet[s.ID] {
+					newIDs = append(newIDs, s.ID)
 				}
-				if !found {
-					allPinnedIDs = append(allPinnedIDs, s.ID)
+			}
+			seen := make(map[int]bool, maxPinnedDocs)
+			allPinnedIDs := make([]int, 0, maxPinnedDocs)
+			for _, id := range newIDs {
+				if !seen[id] && len(allPinnedIDs) < maxPinnedDocs {
+					allPinnedIDs = append(allPinnedIDs, id)
+					seen[id] = true
+				}
+			}
+			for _, id := range pinnedDocIDs {
+				if len(allPinnedIDs) >= maxPinnedDocs {
+					break
+				}
+				if !seen[id] {
+					allPinnedIDs = append(allPinnedIDs, id)
+					seen[id] = true
 				}
 			}
 			pinnedIDsJSON, _ := json.Marshal(allPinnedIDs)

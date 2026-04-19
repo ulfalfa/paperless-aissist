@@ -77,7 +77,7 @@ func (idx *Indexer) Query(
 	systemContent += "To find documents, call search_documents_semantic with a descriptive query. " +
 		"Call it at most once per user question. " +
 		"Only call other tools when the user asks about metadata (tags, correspondents, document types, counts). " +
-		"Never call search_documents_semantic if relevant pinned documents are already provided above."
+		"Call search_documents_semantic again if the user asks about a topic not covered by the pinned documents above."
 
 	messages := []ollama.ChatMessage{
 		{Role: "system", Content: systemContent},
