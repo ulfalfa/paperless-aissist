@@ -1,3 +1,10 @@
+## [0.17.1](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.17.0...v0.17.1) (2026-04-19)
+
+
+### Bug Fixes
+
+* guide LLM to use get_document for IDs and search_documents for exact titles ([a345b13](https://gitlab.com/ulfalfa/paperless-aissist/commit/a345b13d9d9ca7495244a300ca25a1dd9d941178))
+
 # [0.17.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.16.1...v0.17.0) (2026-04-19)
 
 
