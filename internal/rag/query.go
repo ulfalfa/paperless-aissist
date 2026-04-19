@@ -74,10 +74,13 @@ func (idx *Indexer) Query(
 			pinnedContext + "\n\n"
 	}
 
-	systemContent += "To find documents, call search_documents_semantic with a descriptive query. " +
-		"Call it at most once per user question. " +
-		"Only call other tools when the user asks about metadata (tags, correspondents, document types, counts). " +
-		"Call search_documents_semantic again if the user asks about a topic not covered by the pinned documents above."
+	systemContent += "To find documents, follow these rules:\n" +
+		"- If the user provides a numeric document ID, call get_document with that ID directly.\n" +
+		"- If the user provides an exact document title or a specific name to look up, call search_documents with that title/name.\n" +
+		"- For all other questions about topics, subjects, or content, call search_documents_semantic with a descriptive query.\n" +
+		"Call search_documents_semantic at most once per user question. " +
+		"Only call list_tags, list_correspondents, list_document_types, count_documents when the user explicitly asks about those metadata categories. " +
+		"Call search_documents_semantic again only if the user asks about a topic not covered by the pinned documents above."
 
 	messages := []ollama.ChatMessage{
 		{Role: "system", Content: systemContent},
@@ -234,7 +237,7 @@ func buildTools() []ollama.ChatTool {
 			Type: "function",
 			Function: ollama.ChatToolFunction{
 				Name:        "search_documents",
-				Description: "Search paperless-ngx by keyword. Use only when semantic search is insufficient or when searching for exact terms, names, or dates.",
+				Description: "Search paperless-ngx by keyword, exact title, or name. Use this when the user provides an exact document title, a specific person or company name, or other exact terms. Prefer this over semantic search for exact lookups.",
 				Parameters: json.RawMessage(`{
 					"type": "object",
 					"properties": {
@@ -249,7 +252,7 @@ func buildTools() []ollama.ChatTool {
 			Type: "function",
 			Function: ollama.ChatToolFunction{
 				Name:        "get_document",
-				Description: "Retrieve full details and content of a specific document by its ID.",
+				Description: "Retrieve full details and content of a specific document by its numeric ID. Use this immediately when the user mentions or provides a document ID number.",
 				Parameters: json.RawMessage(`{
 					"type": "object",
 					"properties": {
