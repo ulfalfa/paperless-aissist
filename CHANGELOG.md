@@ -1,3 +1,10 @@
+# [0.19.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.18.0...v0.19.0) (2026-04-19)
+
+
+### Features
+
+* show context window usage as progress bar (fetched from Ollama /api/show) ([5d7eb65](https://gitlab.com/ulfalfa/paperless-aissist/commit/5d7eb654600eab22c761c7ab0aaa8db2dd8441c9))
+
 # [0.18.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.17.2...v0.18.0) (2026-04-19)
 
 
