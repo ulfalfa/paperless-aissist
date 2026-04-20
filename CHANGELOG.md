@@ -1,3 +1,10 @@
+# [0.20.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.19.0...v0.20.0) (2026-04-20)
+
+
+### Features
+
+* enrich semantic search queries with inferred document types and allow parallel keyword search ([d5ef917](https://gitlab.com/ulfalfa/paperless-aissist/commit/d5ef917fd556cf313a460c8d6f56f94ba68e00a9))
+
 # [0.19.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.18.0...v0.19.0) (2026-04-19)
 
 
