@@ -76,11 +76,14 @@ func (idx *Indexer) Query(
 
 	systemContent += "To find documents, follow these rules:\n" +
 		"- If the user provides a numeric document ID, call get_document with that ID directly.\n" +
-		"- If the user provides an exact document title or a specific name to look up, call search_documents with that title/name.\n" +
-		"- For all other questions about topics, subjects, or content, call search_documents_semantic with a descriptive query.\n" +
-		"Call search_documents_semantic at most once per user question. " +
+		"- For questions about topics, events, or transactions: call search_documents_semantic with an enriched query. " +
+		"Infer the implied document type (e.g. Überweisung→Kontoauszug, Steuer→Steuerbescheid, " +
+		"Versicherung→Police, Gehalt→Lohnabrechnung) and include it with any person/company names in the query.\n" +
+		"- If the question names a specific person, company, or organization: also call search_documents with that name " +
+		"in the same round (parallel with search_documents_semantic).\n" +
+		"- For exact document title lookups only: call search_documents with the title alone.\n" +
 		"Only call list_tags, list_correspondents, list_document_types, count_documents when the user explicitly asks about those metadata categories. " +
-		"Call search_documents_semantic again only if the user asks about a topic not covered by the pinned documents above."
+		"Do not call search_documents_semantic again if pinned documents above already answer the question."
 
 	messages := []ollama.ChatMessage{
 		{Role: "system", Content: systemContent},
@@ -222,7 +225,11 @@ func buildTools() []ollama.ChatTool {
 			Function: ollama.ChatToolFunction{
 				Name: "search_documents_semantic",
 				Description: "Search the document archive using semantic/vector search. " +
-					"Use this to find documents relevant to a topic or question. " +
+					"Before writing the query, infer what type of document would contain the answer — for example: " +
+					"a question about a bank transfer implies 'Kontoauszug', taxes imply 'Steuerbescheid', " +
+					"insurance implies 'Police' or 'Rechnung', employment implies 'Arbeitsvertrag' or 'Zeugnis'. " +
+					"Include the inferred document type AND any person/company names in the query string. " +
+					"Example: for 'Wann habe ich an Müller überwiesen?' use query 'Überweisung Müller Kontoauszug'. " +
 					"Do NOT call this if pinned documents in the system prompt already cover the topic.",
 				Parameters: json.RawMessage(`{
 					"type": "object",
@@ -238,7 +245,9 @@ func buildTools() []ollama.ChatTool {
 			Type: "function",
 			Function: ollama.ChatToolFunction{
 				Name:        "search_documents",
-				Description: "Search paperless-ngx by keyword, exact title, or name. Use this when the user provides an exact document title, a specific person or company name, or other exact terms. Prefer this over semantic search for exact lookups.",
+				Description: "Search paperless-ngx by keyword, exact title, or name. " +
+					"Use this when the user mentions a specific person, company, or organization name, or an exact document title. " +
+					"You may call this in the same round as search_documents_semantic — both tools can run together.",
 				Parameters: json.RawMessage(`{
 					"type": "object",
 					"properties": {
