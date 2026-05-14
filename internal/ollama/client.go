@@ -7,17 +7,16 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"sync"
+	"time"
 
 	"github.com/ulf/paperless-aissist/internal/types"
 )
 
-// Client sends prompts to Ollama.
+// Client sends prompts to an OpenAI-compatible API (e.g. LiteLLM).
 type Client struct {
-	host      string
-	model     string
-	http      *http.Client
-	ctxCache  sync.Map // model name → int (num_ctx)
+	host  string
+	model string
+	http  *http.Client
 }
 
 func New(host, model string) *Client {
@@ -28,100 +27,94 @@ func New(host, model string) *Client {
 	}
 }
 
-// ContextSize returns the effective context window size for the given model.
-// It calls /api/show once and caches the result per model name.
-func (c *Client) ContextSize(model string) int {
-	if model == "" {
-		model = c.model
-	}
-	if v, ok := c.ctxCache.Load(model); ok {
-		return v.(int)
-	}
-	size := c.fetchContextSize(model)
-	c.ctxCache.Store(model, size)
-	return size
-}
-
-type showResponse struct {
-	ModelInfo  map[string]any `json:"model_info"`
-	Parameters string         `json:"parameters"`
-}
-
-func (c *Client) fetchContextSize(model string) int {
-	body, _ := json.Marshal(map[string]string{"name": model})
-	resp, err := c.http.Post(c.host+"/api/show", "application/json", bytes.NewReader(body))
-	if err != nil {
-		return 0
-	}
-	defer resp.Body.Close()
-	var sr showResponse
-	if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
-		return 0
-	}
-	// Look for any key ending in ".context_length" (llama, qwen2, gemma, etc.)
-	for k, v := range sr.ModelInfo {
-		if strings.HasSuffix(k, ".context_length") {
-			if n, ok := v.(float64); ok && n > 0 {
-				return int(n)
-			}
-		}
-	}
+// ContextSize returns 0; OpenAI-compatible backends have no standard endpoint for this.
+func (c *Client) ContextSize(_ string) int {
 	return 0
 }
 
-type generateRequest struct {
-	Model     string          `json:"model"`
-	Prompt    string          `json:"prompt"`
-	Format    json.RawMessage `json:"format,omitempty"`
-	Stream    bool            `json:"stream"`
-	KeepAlive int             `json:"keep_alive"` // -1 = keep loaded indefinitely, 0 = unload
-	Think     *bool           `json:"think,omitempty"`
-	Options   map[string]any  `json:"options,omitempty"`
+// ─── shared OpenAI request/response types ────────────────────────────────────
+
+type oaiMessage struct {
+	Role       string       `json:"role"`
+	Content    string       `json:"content"`
+	ToolCallID string       `json:"tool_call_id,omitempty"`
+	ToolCalls  []oaiTCCall  `json:"tool_calls,omitempty"`
 }
 
-type generateResponse struct {
-	Response           string `json:"response"`
-	TotalDuration      int64  `json:"total_duration"`
-	LoadDuration       int64  `json:"load_duration"`
-	PromptEvalCount    int    `json:"prompt_eval_count"`
-	PromptEvalDuration int64  `json:"prompt_eval_duration"`
-	EvalCount          int    `json:"eval_count"`
-	EvalDuration       int64  `json:"eval_duration"`
+type oaiTCCall struct {
+	ID       string      `json:"id"`
+	Type     string      `json:"type"`
+	Function oaiTCFunc   `json:"function"`
 }
 
-// optsToRequest builds keepAlive, think flag and options map from ModelOptions.
-func optsToRequest(model string, opts types.ModelOptions) (string, int, *bool, map[string]any) {
-	if opts.Model != "" {
-		model = opts.Model
-	}
-	keepAlive := -1
-	if opts.UnloadAfter {
-		keepAlive = 0
-	}
-	think := opts.Think
-	m := map[string]any{}
-	if opts.Temperature > 0 {
-		m["temperature"] = opts.Temperature
-	}
-	if opts.TopK > 0 {
-		m["top_k"] = opts.TopK
-	}
-	if opts.TopP > 0 {
-		m["top_p"] = opts.TopP
-	}
-	if opts.RepeatPenalty > 0 {
-		m["repeat_penalty"] = opts.RepeatPenalty
-	}
-	if opts.NumCtx > 0 {
-		m["num_ctx"] = opts.NumCtx
-	}
-	if len(m) == 0 {
-		m = nil
-	}
-	return model, keepAlive, &think, m
+type oaiTCFunc struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"` // JSON-encoded string in OpenAI format
 }
 
-// Analyze sends document text + hints to Ollama and returns structured metadata and performance info.
+type oaiTool struct {
+	Type     string      `json:"type"`
+	Function oaiToolDef  `json:"function"`
+}
+
+type oaiToolDef struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Parameters  json.RawMessage `json:"parameters"`
+}
+
+type oaiResponseFormat struct {
+	Type string `json:"type"`
+}
+
+type oaiChatRequest struct {
+	Model          string             `json:"model"`
+	Messages       []oaiMessage       `json:"messages"`
+	Tools          []oaiTool          `json:"tools,omitempty"`
+	Stream         bool               `json:"stream"`
+	ResponseFormat *oaiResponseFormat `json:"response_format,omitempty"`
+	Temperature    *float64           `json:"temperature,omitempty"`
+	TopP           *float64           `json:"top_p,omitempty"`
+}
+
+type oaiChatResponse struct {
+	Choices []struct {
+		Message oaiMessage `json:"message"`
+	} `json:"choices"`
+	Usage struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+	} `json:"usage"`
+}
+
+func (c *Client) postChat(req oaiChatRequest) (*oaiChatResponse, time.Duration, error) {
+	data, err := json.Marshal(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	start := time.Now()
+	resp, err := c.http.Post(c.host+"/v1/chat/completions", "application/json", bytes.NewReader(data))
+	elapsed := time.Since(start)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, 0, fmt.Errorf("openai error %d: %s", resp.StatusCode, string(body))
+	}
+	var cr oaiChatResponse
+	if err := json.NewDecoder(resp.Body).Decode(&cr); err != nil {
+		return nil, 0, err
+	}
+	if len(cr.Choices) == 0 {
+		return nil, 0, fmt.Errorf("openai: no choices in response")
+	}
+	return &cr, elapsed, nil
+}
+
+// ─── generate (document analysis with JSON output) ────────────────────────────
+
 func (c *Client) Analyze(prompt string, opts types.ModelOptions) (*types.AnalysisResult, *types.OllamaPerf, error) {
 	result, perf, err := c.generate(prompt, opts)
 	if err != nil {
@@ -134,144 +127,128 @@ func (c *Client) Analyze(prompt string, opts types.ModelOptions) (*types.Analysi
 }
 
 func (c *Client) generate(prompt string, opts types.ModelOptions) (*types.AnalysisResult, *types.OllamaPerf, error) {
-	model, keepAlive, think, options := optsToRequest(c.model, opts)
-	req := generateRequest{
-		Model:     model,
-		Prompt:    prompt,
-		Format:    json.RawMessage(`"json"`),
-		Stream:    false,
-		KeepAlive: keepAlive,
-		Think:     think,
-		Options:   options,
+	model := c.model
+	if opts.Model != "" {
+		model = opts.Model
 	}
-	data, err := json.Marshal(req)
-	if err != nil {
-		return nil, nil, err
+	req := oaiChatRequest{
+		Model: model,
+		Messages: []oaiMessage{
+			{Role: "user", Content: prompt},
+		},
+		Stream:         false,
+		ResponseFormat: &oaiResponseFormat{Type: "json_object"},
 	}
-	resp, err := c.http.Post(c.host+"/api/generate", "application/json", bytes.NewReader(data))
-	if err != nil {
-		return nil, nil, err
+	if opts.Temperature > 0 {
+		t := opts.Temperature
+		req.Temperature = &t
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, nil, fmt.Errorf("ollama error %d: %s", resp.StatusCode, string(body))
-	}
-	var gen generateResponse
-	if err := json.NewDecoder(resp.Body).Decode(&gen); err != nil {
-		return nil, nil, err
-	}
-	var result types.AnalysisResult
-	if err := json.Unmarshal([]byte(gen.Response), &result); err != nil {
-		return nil, nil, fmt.Errorf("parse ollama response: %w (raw: %s)", err, gen.Response)
+	if opts.TopP > 0 {
+		p := opts.TopP
+		req.TopP = &p
 	}
 
-	perf := buildPerf(gen)
+	cr, elapsed, err := c.postChat(req)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	content := cr.Choices[0].Message.Content
+	var result types.AnalysisResult
+	if err := json.Unmarshal([]byte(content), &result); err != nil {
+		return nil, nil, fmt.Errorf("parse response: %w (raw: %s)", err, content)
+	}
+	secs := elapsed.Seconds()
+	perf := &types.OllamaPerf{
+		TotalDurationMs: float64(elapsed.Milliseconds()),
+		PromptTokens:    cr.Usage.PromptTokens,
+		GeneratedTokens: cr.Usage.CompletionTokens,
+	}
+	if secs > 0 && cr.Usage.CompletionTokens > 0 {
+		perf.TokensPerSec = float64(cr.Usage.CompletionTokens) / secs
+	}
 	return &result, perf, nil
 }
 
-func buildPerf(gen generateResponse) *types.OllamaPerf {
-	p := &types.OllamaPerf{
-		TotalDurationMs: float64(gen.TotalDuration) / 1e6,
-		LoadDurationMs:  float64(gen.LoadDuration) / 1e6,
-		PromptTokens:    gen.PromptEvalCount,
-		PromptEvalMs:    float64(gen.PromptEvalDuration) / 1e6,
-		GeneratedTokens: gen.EvalCount,
-		GeneratedMs:     float64(gen.EvalDuration) / 1e6,
-	}
-	if gen.EvalDuration > 0 {
-		p.TokensPerSec = float64(gen.EvalCount) / (float64(gen.EvalDuration) / 1e9)
-	}
-	return p
-}
-
-type embedRequest struct {
-	Model     string   `json:"model"`
-	Input     []string `json:"input"`
-	KeepAlive int      `json:"keep_alive"` // -1 = keep loaded indefinitely
-}
-
-type embedResponse struct {
-	Embeddings [][]float32 `json:"embeddings"`
-}
-
-// Embed calls /api/embed and returns the embedding vector for one text.
-func (c *Client) Embed(model, text string) ([]float32, error) {
-	req := embedRequest{Model: model, Input: []string{text}, KeepAlive: -1}
-	data, _ := json.Marshal(req)
-	resp, err := c.http.Post(c.host+"/api/embed", "application/json", bytes.NewReader(data))
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("ollama embed error %d: %s", resp.StatusCode, string(body))
-	}
-	var er embedResponse
-	if err := json.NewDecoder(resp.Body).Decode(&er); err != nil {
-		return nil, err
-	}
-	if len(er.Embeddings) == 0 {
-		return nil, fmt.Errorf("no embeddings returned")
-	}
-	return er.Embeddings[0], nil
-}
-
-type tagsResponse struct {
-	Models []struct {
-		Name string `json:"name"`
-	} `json:"models"`
-}
-
-// ListModels returns the names of all models available in Ollama.
-func (c *Client) ListModels() ([]string, error) {
-	resp, err := c.http.Get(c.host + "/api/tags")
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	var tr tagsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
-		return nil, err
-	}
-	names := make([]string, len(tr.Models))
-	for i, m := range tr.Models {
-		names[i] = m.Name
-	}
-	return names, nil
-}
-
-// Generate sends a prompt and returns the raw text response (no JSON parsing).
-// If model is empty, the client's default model is used.
+// Generate sends a prompt and returns the raw text response.
 func (c *Client) Generate(model, prompt string) (string, error) {
 	if model == "" {
 		model = c.model
 	}
-	req := generateRequest{
-		Model:     model,
-		Prompt:    prompt,
-		Stream:    false,
-		KeepAlive: -1,
-	}
-	data, _ := json.Marshal(req)
-	resp, err := c.http.Post(c.host+"/api/generate", "application/json", bytes.NewReader(data))
+	cr, _, err := c.postChat(oaiChatRequest{
+		Model:    model,
+		Messages: []oaiMessage{{Role: "user", Content: prompt}},
+		Stream:   false,
+	})
 	if err != nil {
 		return "", err
+	}
+	return cr.Choices[0].Message.Content, nil
+}
+
+// ─── embeddings ──────────────────────────────────────────────────────────────
+
+type oaiEmbedRequest struct {
+	Model string   `json:"model"`
+	Input []string `json:"input"`
+}
+
+type oaiEmbedResponse struct {
+	Data []struct {
+		Embedding []float32 `json:"embedding"`
+	} `json:"data"`
+}
+
+// Embed calls /v1/embeddings and returns the embedding vector for one text.
+func (c *Client) Embed(model, text string) ([]float32, error) {
+	req := oaiEmbedRequest{Model: model, Input: []string{text}}
+	data, _ := json.Marshal(req)
+	resp, err := c.http.Post(c.host+"/v1/embeddings", "application/json", bytes.NewReader(data))
+	if err != nil {
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("ollama error %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("embed error %d: %s", resp.StatusCode, string(body))
 	}
-	var gen generateResponse
-	if err := json.NewDecoder(resp.Body).Decode(&gen); err != nil {
-		return "", err
+	var er oaiEmbedResponse
+	if err := json.NewDecoder(resp.Body).Decode(&er); err != nil {
+		return nil, err
 	}
-	return gen.Response, nil
+	if len(er.Data) == 0 {
+		return nil, fmt.Errorf("no embeddings returned")
+	}
+	return er.Data[0].Embedding, nil
 }
 
-// ── /api/chat with tool calling ──────────────────────────────────────────────
+// ─── model list ──────────────────────────────────────────────────────────────
+
+type oaiModelsResponse struct {
+	Data []struct {
+		ID string `json:"id"`
+	} `json:"data"`
+}
+
+// ListModels returns the names of all models available via /v1/models.
+func (c *Client) ListModels() ([]string, error) {
+	resp, err := c.http.Get(c.host + "/v1/models")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var mr oaiModelsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&mr); err != nil {
+		return nil, err
+	}
+	names := make([]string, len(mr.Data))
+	for i, m := range mr.Data {
+		names[i] = m.ID
+	}
+	return names, nil
+}
+
+// ─── chat with tool calling ──────────────────────────────────────────────────
 
 // ChatTool describes a function the LLM may call.
 type ChatTool struct {
@@ -285,39 +262,23 @@ type ChatToolFunction struct {
 	Parameters  json.RawMessage `json:"parameters"`
 }
 
-// ChatMessage is a single turn in a /api/chat conversation.
+// ChatMessage is a single turn in a chat conversation.
 type ChatMessage struct {
-	Role      string     `json:"role"`                 // system | user | assistant | tool
-	Content   string     `json:"content"`
-	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+	Role       string     `json:"role"`
+	Content    string     `json:"content"`
+	ToolCallID string     `json:"tool_call_id,omitempty"`
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 }
 
 // ToolCall is an LLM-requested tool invocation.
 type ToolCall struct {
+	ID       string           `json:"id,omitempty"`
 	Function ToolCallFunction `json:"function"`
 }
 
 type ToolCallFunction struct {
 	Name      string          `json:"name"`
 	Arguments json.RawMessage `json:"arguments"`
-}
-
-type chatRequest struct {
-	Model     string         `json:"model"`
-	Messages  []ChatMessage  `json:"messages"`
-	Tools     []ChatTool     `json:"tools,omitempty"`
-	Stream    bool           `json:"stream"`
-	KeepAlive int            `json:"keep_alive"`
-	Think     *bool          `json:"think,omitempty"`
-	Options   map[string]any `json:"options,omitempty"`
-}
-
-type chatResponse struct {
-	Message            ChatMessage `json:"message"`
-	EvalCount          int         `json:"eval_count"`
-	EvalDuration       int64       `json:"eval_duration"`
-	PromptEvalCount    int         `json:"prompt_eval_count"`
-	TotalDuration      int64       `json:"total_duration"`
 }
 
 // ChatRoundPerf holds per-round LLM performance metrics.
@@ -328,44 +289,86 @@ type ChatRoundPerf struct {
 	TotalMs         float64
 }
 
-// Chat sends messages to /api/chat and returns the assistant reply and perf metrics.
-// If the model requests tool calls they are returned in the message's ToolCalls field.
-// think controls the model's extended thinking mode; nil means use the server default.
-func (c *Client) Chat(model string, messages []ChatMessage, tools []ChatTool, think *bool) (*ChatMessage, *ChatRoundPerf, error) {
+// Chat sends messages to /v1/chat/completions and returns the assistant reply.
+func (c *Client) Chat(model string, messages []ChatMessage, tools []ChatTool, _ *bool) (*ChatMessage, *ChatRoundPerf, error) {
 	if model == "" {
 		model = c.model
 	}
-	req := chatRequest{
-		Model:     model,
-		Messages:  messages,
-		Tools:     tools,
-		Stream:    false,
-		KeepAlive: -1, // keep loaded indefinitely for chat (performance)
-		Think:     think,
+
+	oaiMsgs := make([]oaiMessage, len(messages))
+	for i, m := range messages {
+		oaiMsgs[i] = oaiMessage{
+			Role:       m.Role,
+			Content:    m.Content,
+			ToolCallID: m.ToolCallID,
+		}
+		for _, tc := range m.ToolCalls {
+			oaiMsgs[i].ToolCalls = append(oaiMsgs[i].ToolCalls, oaiTCCall{
+				ID:   tc.ID,
+				Type: "function",
+				Function: oaiTCFunc{
+					Name:      tc.Function.Name,
+					Arguments: string(tc.Function.Arguments),
+				},
+			})
+		}
 	}
-	data, _ := json.Marshal(req)
-	resp, err := c.http.Post(c.host+"/api/chat", "application/json", bytes.NewReader(data))
+
+	oaiTools := make([]oaiTool, len(tools))
+	for i, t := range tools {
+		oaiTools[i] = oaiTool{
+			Type: t.Type,
+			Function: oaiToolDef{
+				Name:        t.Function.Name,
+				Description: t.Function.Description,
+				Parameters:  t.Function.Parameters,
+			},
+		}
+	}
+
+	cr, elapsed, err := c.postChat(oaiChatRequest{
+		Model:    model,
+		Messages: oaiMsgs,
+		Tools:    oaiTools,
+		Stream:   false,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, nil, fmt.Errorf("ollama chat error %d: %s", resp.StatusCode, string(body))
+
+	raw := cr.Choices[0].Message
+	msg := &ChatMessage{
+		Role:    raw.Role,
+		Content: raw.Content,
 	}
-	var cr chatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&cr); err != nil {
-		return nil, nil, err
+	for _, tc := range raw.ToolCalls {
+		args := json.RawMessage(tc.Function.Arguments)
+		// Some backends double-encode arguments as a JSON string; un-quote if needed.
+		if len(args) > 0 && args[0] == '"' {
+			var s string
+			if err := json.Unmarshal(args, &s); err == nil {
+				args = json.RawMessage(s)
+			}
+		}
+		msg.ToolCalls = append(msg.ToolCalls, ToolCall{
+			ID: tc.ID,
+			Function: ToolCallFunction{
+				Name:      tc.Function.Name,
+				Arguments: args,
+			},
+		})
 	}
+
+	secs := elapsed.Seconds()
 	perf := &ChatRoundPerf{
-		GeneratedTokens: cr.EvalCount,
-		PromptTokens:    cr.PromptEvalCount,
-		TotalMs:         float64(cr.TotalDuration) / 1e6,
+		PromptTokens:    cr.Usage.PromptTokens,
+		GeneratedTokens: cr.Usage.CompletionTokens,
+		TotalMs:         float64(elapsed.Milliseconds()),
 	}
-	if cr.EvalDuration > 0 {
-		perf.TokensPerSec = float64(cr.EvalCount) / (float64(cr.EvalDuration) / 1e9)
+	if secs > 0 && cr.Usage.CompletionTokens > 0 {
+		perf.TokensPerSec = float64(cr.Usage.CompletionTokens) / secs
 	}
-	return &cr.Message, perf, nil
+	return msg, perf, nil
 }
 
 // BuildPrompt fills in the prompt template placeholders.

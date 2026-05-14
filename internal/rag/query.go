@@ -192,8 +192,9 @@ func (idx *Indexer) Query(
 			promptlog.WriteTool(round, tc.Function.Name, tc.Function.Arguments, text, errStr, toolDuration)
 
 			messages = append(messages, ollama.ChatMessage{
-				Role:    "tool",
-				Content: text,
+				Role:       "tool",
+				Content:    text,
+				ToolCallID: tc.ID,
 			})
 		}
 	}
