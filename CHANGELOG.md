@@ -1,3 +1,10 @@
+## [0.21.1](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.21.0...v0.21.1) (2026-05-14)
+
+
+### Bug Fixes
+
+* improve layout proportions and dark mode polish ([cd6e7b1](https://gitlab.com/ulfalfa/paperless-aissist/commit/cd6e7b1eedb5eff883f479d94ae210f0956cafc2))
+
 # [0.21.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.20.0...v0.21.0) (2026-05-14)
 
 
