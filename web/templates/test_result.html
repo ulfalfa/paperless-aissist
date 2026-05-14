@@ -2,14 +2,44 @@
 {{if .Error}}
   <p class="error-msg">{{.Error}}</p>
 {{else}}
+
+{{/* Current paperless values */}}
+{{with .Current}}
+<article style="margin-top:1rem; margin-bottom:1rem;">
+  <header>Current Paperless Values — Doc {{$.DocID}}</header>
+  <table style="font-size:0.85rem; margin:0;">
+    <tbody>
+      <tr>
+        <th style="width:8rem; font-weight:600; white-space:nowrap;">Title</th>
+        <td>{{.Title}}</td>
+      </tr>
+      <tr>
+        <th style="font-weight:600;">Date</th>
+        <td>{{.Created}}</td>
+      </tr>
+      <tr>
+        <th style="font-weight:600;">Correspondent</th>
+        <td>{{if .Correspondent}}{{.Correspondent}}{{else}}<span style="color:var(--pico-muted-color);">—</span>{{end}}</td>
+      </tr>
+      <tr>
+        <th style="font-weight:600;">Type</th>
+        <td>{{if .DocumentType}}{{.DocumentType}}{{else}}<span style="color:var(--pico-muted-color);">—</span>{{end}}</td>
+      </tr>
+      <tr>
+        <th style="font-weight:600; vertical-align:top;">Tags</th>
+        <td>{{if .Tags}}{{join .Tags ", "}}{{else}}<span style="color:var(--pico-muted-color);">—</span>{{end}}</td>
+      </tr>
+    </tbody>
+  </table>
+</article>
+{{end}}
+
 <div class="responsive-grid" style="margin-top:1rem;">
 
-  {{/* Config A */}}
+  {{/* Config A — current settings */}}
   <div style="border:1px solid var(--pico-form-element-border-color); border-radius:var(--pico-border-radius); padding:1rem;">
-    <h4 style="margin-bottom:0.25rem;">Config A
-      <small style="font-weight:400; color:var(--pico-muted-color);">
-        {{if .A.Resp}}{{.A.Resp.EffectiveModel}}{{else if .A.Opts.Model}}{{.A.Opts.Model}}{{end}}
-      </small>
+    <h4 style="margin-bottom:0.25rem;">Config A — Current Settings
+      {{if .A.Resp}}<small style="font-weight:400; color:var(--pico-muted-color);">{{.A.Resp.EffectiveModel}}</small>{{end}}
     </h4>
     <p style="font-size:0.8rem; color:var(--pico-muted-color); margin-bottom:0.75rem; font-family:monospace;">
       {{if gt .A.Opts.Temperature 0.0}}temp={{.A.Opts.Temperature}} {{end -}}
@@ -23,15 +53,16 @@
       <p class="error-msg" style="font-size:0.85rem;">{{.A.Error}}</p>
     {{else if .A.Resp}}
       {{template "test_run_table.html" .A.Resp}}
+      <hr style="margin:1rem 0;">
+      {{template "save_form.html" (map "DocID" $.DocID "Suggest" .A.Resp.Analysis "Correspondents" $.Correspondents "DocumentTypes" $.DocumentTypes "AllTags" $.AllTags "Suffix" "a" "Target" "#save-result-a")}}
+      <div id="save-result-a"></div>
     {{end}}
   </div>
 
-  {{/* Config B */}}
+  {{/* Config B — variant */}}
   <div style="border:1px solid var(--pico-form-element-border-color); border-radius:var(--pico-border-radius); padding:1rem;">
-    <h4 style="margin-bottom:0.25rem;">Config B
-      <small style="font-weight:400; color:var(--pico-muted-color);">
-        {{if .B.Resp}}{{.B.Resp.EffectiveModel}}{{else if .B.Opts.Model}}{{.B.Opts.Model}}{{end}}
-      </small>
+    <h4 style="margin-bottom:0.25rem;">Config B — Variant
+      {{if .B.Resp}}<small style="font-weight:400; color:var(--pico-muted-color);">{{.B.Resp.EffectiveModel}}</small>{{end}}
     </h4>
     <p style="font-size:0.8rem; color:var(--pico-muted-color); margin-bottom:0.75rem; font-family:monospace;">
       {{if gt .B.Opts.Temperature 0.0}}temp={{.B.Opts.Temperature}} {{end -}}
@@ -45,6 +76,25 @@
       <p class="error-msg" style="font-size:0.85rem;">{{.B.Error}}</p>
     {{else if .B.Resp}}
       {{template "test_run_table.html" .B.Resp}}
+      <hr style="margin:1rem 0;">
+      {{template "save_form.html" (map "DocID" $.DocID "Suggest" .B.Resp.Analysis "Correspondents" $.Correspondents "DocumentTypes" $.DocumentTypes "AllTags" $.AllTags "Suffix" "b" "Target" "#save-result-b")}}
+      <div id="save-result-b"></div>
+    {{end}}
+    {{if .B.Opts}}
+    <hr style="margin:1rem 0;">
+    <form hx-post="/ui/test/apply-variant" hx-target="#apply-variant-result" hx-swap="innerHTML">
+      <input type="hidden" name="model" value="{{.B.Opts.Model}}">
+      <input type="hidden" name="temperature" value="{{.B.Opts.Temperature}}">
+      <input type="hidden" name="topK" value="{{.B.Opts.TopK}}">
+      <input type="hidden" name="topP" value="{{.B.Opts.TopP}}">
+      <input type="hidden" name="repeatPenalty" value="{{.B.Opts.RepeatPenalty}}">
+      <input type="hidden" name="numCtx" value="{{.B.Opts.NumCtx}}">
+      <input type="hidden" name="think" value="{{if .B.Opts.Think}}true{{else}}false{{end}}">
+      <button type="submit" class="secondary outline" style="margin:0; width:100%;">
+        Apply Variant to Settings
+      </button>
+    </form>
+    <div id="apply-variant-result"></div>
     {{end}}
   </div>
 

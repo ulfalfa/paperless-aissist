@@ -1,0 +1,51 @@
+{{define "save_form.html"}}
+<form hx-post="/ui/documents/{{.DocID}}/save" hx-target="{{.Target}}" hx-swap="innerHTML">
+  <label>
+    Title
+    <input type="text" name="title" value="{{.Suggest.Title}}" required>
+  </label>
+  <div class="grid">
+    <label>
+      Created Date
+      <input type="date" name="created_date" value="{{deref .Suggest.CreatedDate}}">
+    </label>
+    <label>
+      Correspondent
+      <input type="text" name="correspondent" list="correspondents-list-{{.Suffix}}"
+             value="{{deref .Suggest.Correspondent}}">
+      <datalist id="correspondents-list-{{.Suffix}}">
+        {{range .Correspondents}}<option value="{{.Name}}">{{end}}
+      </datalist>
+    </label>
+    <label>
+      Document Type
+      <input type="text" name="document_type" list="doctypes-list-{{.Suffix}}"
+             value="{{deref .Suggest.DocumentType}}">
+      <datalist id="doctypes-list-{{.Suffix}}">
+        {{range .DocumentTypes}}<option value="{{.Name}}">{{end}}
+      </datalist>
+    </label>
+  </div>
+  <label>
+    Tags
+    <input id="tags-input-{{.Suffix}}" name="tags" value="{{join .Suggest.Tags ", "}}"
+           data-whitelist='[{{range $i, $t := .AllTags}}{{if $i}},{{end}}"{{$t.Name}}"{{end}}]'>
+  </label>
+  <button type="submit">Save to paperless-ngx</button>
+</form>
+<script>
+(function() {
+  var input = document.getElementById('tags-input-{{.Suffix}}');
+  if (input && !input._tagify) {
+    var whitelist = JSON.parse(input.dataset.whitelist || '[]');
+    input._tagify = new Tagify(input, {
+      whitelist: whitelist,
+      dropdown: { enabled: 1, maxItems: 20, closeOnSelect: false },
+      originalInputValueFormat: function(tags) {
+        return tags.map(function(t){ return t.value; }).join(', ');
+      }
+    });
+  }
+})();
+</script>
+{{end}}

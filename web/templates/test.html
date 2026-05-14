@@ -18,33 +18,20 @@
 
   <div class="responsive-grid" style="margin-bottom:1rem;">
 
-    {{/* Config A */}}
+    {{/* Config A — current settings, read-only */}}
     <article>
-      <header>Config A <small style="font-weight:400; color:var(--pico-muted-color);">(current settings)</small></header>
-      <label>Model
-        <select name="a_model">
-          <option value="">{{$cfg.OllamaModel}} (default)</option>
-          {{range $models}}<option value="{{.}}">{{.}}</option>{{end}}
-        </select>
-      </label>
-      <div class="grid">
-        <label>Temperature<input type="number" name="a_temperature" value="{{if $cfg.Temperature}}{{$cfg.Temperature}}{{end}}" step="0.05" min="0" max="2" placeholder="default"></label>
-        <label>Top K<input type="number" name="a_topK" value="{{if $cfg.TopK}}{{$cfg.TopK}}{{end}}" min="0" placeholder="default"></label>
-      </div>
-      <div class="grid">
-        <label>Top P<input type="number" name="a_topP" value="{{if $cfg.TopP}}{{$cfg.TopP}}{{end}}" step="0.05" min="0" max="1" placeholder="default"></label>
-        <label>Repeat Penalty<input type="number" name="a_repeatPenalty" value="{{if $cfg.RepeatPenalty}}{{$cfg.RepeatPenalty}}{{end}}" step="0.05" min="0" placeholder="default"></label>
-      </div>
-      <label>Context Size<input type="number" name="a_numCtx" value="{{if $cfg.NumCtx}}{{$cfg.NumCtx}}{{end}}" min="0" placeholder="default"></label>
-      <label>
-        <input type="checkbox" name="a_think" {{if $cfg.Think}}checked{{end}}>
-        Thinking mode
-      </label>
+      <header>Config A <small style="font-weight:400; color:var(--pico-muted-color);">(current settings — not editable)</small></header>
+      <p style="font-family:monospace; font-size:0.85rem; margin-bottom:0.5rem;">
+        <strong>{{$cfg.OllamaModel}}</strong>{{if gt $cfg.Temperature 0.0}} &middot; temp={{$cfg.Temperature}}{{end}}{{if gt $cfg.TopK 0}} &middot; top_k={{$cfg.TopK}}{{end}}{{if gt $cfg.TopP 0.0}} &middot; top_p={{$cfg.TopP}}{{end}}{{if gt $cfg.RepeatPenalty 0.0}} &middot; rep={{$cfg.RepeatPenalty}}{{end}}{{if gt $cfg.NumCtx 0}} &middot; ctx={{$cfg.NumCtx}}{{end}}{{if $cfg.Think}} &middot; think=on{{end}}
+      </p>
+      <p style="font-size:0.82rem; color:var(--pico-muted-color); margin:0;">
+        Change these values in <a href="/settings">Settings</a>.
+      </p>
     </article>
 
-    {{/* Config B */}}
+    {{/* Config B — variant, editable */}}
     <article>
-      <header>Config B <small style="font-weight:400; color:var(--pico-muted-color);">(your override)</small></header>
+      <header>Config B <small style="font-weight:400; color:var(--pico-muted-color);">(your variant)</small></header>
       <label>Model
         <select name="b_model">
           <option value="">{{$cfg.OllamaModel}} (default)</option>
