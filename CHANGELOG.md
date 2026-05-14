@@ -1,3 +1,12 @@
+# [0.21.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.20.0...v0.21.0) (2026-05-14)
+
+
+### Features
+
+* model selection dropdowns in settings ([e1b82cb](https://gitlab.com/ulfalfa/paperless-aissist/commit/e1b82cb61d268c09b8b1e102cc44f15d309f4b6c))
+* redesign compare page with fixed reference side and save-to-paperless ([94932a9](https://gitlab.com/ulfalfa/paperless-aissist/commit/94932a934f95b6e0ccc4e187915d008d60260e91))
+* switch from Ollama to OpenAI-compatible API (LiteLLM) ([e8410e5](https://gitlab.com/ulfalfa/paperless-aissist/commit/e8410e53814c96e36842ff23c80800085353311f))
+
 # [0.20.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.19.0...v0.20.0) (2026-04-20)
 
 
