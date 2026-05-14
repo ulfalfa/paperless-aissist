@@ -4,19 +4,64 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Login — paperless-aissist</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
   <style>
-    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-    main { width: 100%; max-width: 400px; padding: 2rem; }
-    h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
-    .subtitle { color: var(--pico-muted-color); margin-bottom: 2rem; font-size: 0.9rem; }
-    .error { color: var(--pico-del-color); margin-bottom: 1rem; font-size: 0.9rem; }
+    :root {
+      --app-bg:       #111318;
+      --app-surface:  #191c24;
+      --app-border:   #262b38;
+      --app-amber:    #f5a623;
+      --app-amber-glow: rgba(245, 166, 35, 0.20);
+      --pico-background-color: var(--app-bg);
+      --pico-card-background-color: var(--app-surface);
+      --pico-card-border-color: var(--app-border);
+      --pico-primary: var(--app-amber);
+      --pico-primary-hover: #e09515;
+      --pico-primary-focus: var(--app-amber-glow);
+      --pico-primary-inverse: #111318;
+      --pico-form-element-background-color: var(--app-surface);
+      --pico-form-element-border-color: var(--app-border);
+      --pico-form-element-active-border-color: var(--app-amber);
+      --pico-form-element-focus-color: var(--app-amber);
+      --pico-font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    }
+    body {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh;
+      background: var(--app-bg);
+      font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    }
+    main { width: 100%; max-width: 360px; padding: 2rem; }
+    .brand { margin-bottom: 2rem; }
+    .brand h1 {
+      font-size: 1.3rem; margin: 0 0 0.2rem;
+      font-weight: 700; letter-spacing: 0.01em;
+    }
+    .brand h1 strong { color: var(--app-amber); }
+    .brand p {
+      color: var(--pico-muted-color);
+      font-size: 0.8rem; margin: 0;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    .error {
+      background: rgba(239, 68, 68, 0.12);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      padding: 0.5rem 1rem; border-radius: 6px;
+      margin-bottom: 1rem; font-size: 0.9rem;
+    }
   </style>
 </head>
 <body>
   <main>
-    <h1>paperless-aissist</h1>
-    <p class="subtitle">Sign in to continue.</p>
+    <div class="brand">
+      <h1><strong>paperless</strong>-aissist</h1>
+      <p>AI for paperless-ngx</p>
+    </div>
 
     {{if .Error}}
     <p class="error">{{.Error}}</p>

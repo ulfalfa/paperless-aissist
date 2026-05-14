@@ -16,7 +16,7 @@
   </div>
 
   <!-- Input area -->
-  <div style="border-top: 1px solid var(--pico-muted-border-color); padding-top: 1rem;">
+  <div style="border-top: 1px solid var(--app-border); padding-top: 1rem;">
     <form id="chat-form"
           hx-post="/ui/chat"
           hx-target="#chat-messages"
@@ -25,26 +25,29 @@
       <input type="hidden" name="history" id="chat-history" value="[]">
       <input type="hidden" name="pinned_ids" id="chat-pinned-ids" value="[]">
       <input type="hidden" name="think" id="chat-think-hidden" value="{{.Data.ThinkDefault}}">
-      <div class="chat-input-row">
+
+      <!-- Row 1: model + think toggle -->
+      <div style="display:flex; gap:0.5rem; margin-bottom:0.5rem; align-items:center;">
+        <select id="chat-model" style="flex:1; margin:0;">
+          {{range .Data.Models}}
+          <option value="{{.}}" {{if eq . $.Data.DefaultModel}}selected{{end}}>{{.}}</option>
+          {{end}}
+        </select>
+        <button type="button" id="think-toggle"
+                class="outline secondary"
+                style="margin:0; white-space:nowrap; flex-shrink:0;"
+                title="Thinking: off">
+          Thinking
+        </button>
+      </div>
+
+      <!-- Row 2: textarea + send -->
+      <div style="display:flex; gap:0.5rem; align-items:flex-end;">
         <textarea id="question" name="question" rows="2"
                   placeholder="Frage stellen…"
-                  style="flex: 1; resize: none; margin: 0;"
+                  style="flex:1; resize:none; margin:0;"
                   required></textarea>
-        <div class="chat-input-controls">
-          <select id="chat-model" style="margin: 0; font-size: 0.85rem; padding: 0.4rem 0.6rem;">
-            {{range .Data.Models}}
-            <option value="{{.}}" {{if eq . $.Data.DefaultModel}}selected{{end}}>{{.}}</option>
-            {{end}}
-          </select>
-          <div class="chat-input-actions">
-            <button type="submit" style="margin: 0; flex: 1;">Send</button>
-            <button type="button" id="think-toggle"
-                    style="margin: 0; padding: 0.4rem 0.6rem; font-size: 0.8rem; white-space: nowrap;"
-                    title="Thinking: off">
-              Thinking
-            </button>
-          </div>
-        </div>
+        <button type="submit" style="margin:0; flex-shrink:0; align-self:flex-end;">Send</button>
       </div>
     </form>
   </div>
@@ -56,29 +59,32 @@
   .chat-bubble {
     max-width: 78%;
     padding: 0.65rem 1rem;
-    border-radius: 1.1rem;
-    line-height: 1.5;
+    border-radius: 1rem;
+    line-height: 1.6;
     word-wrap: break-word;
+    font-size: 0.9rem;
   }
   .chat-bubble-user {
-    background: var(--pico-primary);
-    color: #fff;
+    background: var(--app-amber);
+    color: #111318;
+    font-weight: 500;
     margin-left: auto;
-    border-bottom-right-radius: 0.25rem;
+    border-bottom-right-radius: 0.2rem;
   }
   .chat-bubble-assistant {
-    background: var(--pico-card-background-color);
-    border: 1px solid var(--pico-muted-border-color);
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    color: var(--app-text);
     margin-right: auto;
     margin-top: 0.4rem;
-    border-bottom-left-radius: 0.25rem;
+    border-bottom-left-radius: 0.2rem;
+    border-left: 2px solid var(--app-amber);
   }
-  /* Markdown content inside assistant bubble */
   .chat-markdown > *:first-child { margin-top: 0; }
   .chat-markdown > *:last-child { margin-bottom: 0; }
   .chat-markdown p { margin: 0.4rem 0; }
   .chat-markdown ul, .chat-markdown ol { margin: 0.4rem 0; padding-left: 1.4rem; }
-  .chat-markdown code { font-size: 0.85em; }
+  .chat-markdown code { font-size: 0.85em; font-family: 'IBM Plex Mono', monospace; }
   .chat-markdown pre { margin: 0.5rem 0; }
   .chat-markdown h1, .chat-markdown h2, .chat-markdown h3 { margin: 0.6rem 0 0.3rem; font-size: 1em; font-weight: 700; }
 </style>

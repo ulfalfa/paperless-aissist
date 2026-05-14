@@ -1,15 +1,18 @@
 {{define "tag_docs.html"}}
 {{if .}}
+<style>
+  .tag-doc-list a:hover { background: var(--app-surface) !important; color: var(--app-amber) !important; }
+  .tag-doc-list a:hover .tag-doc-id { color: var(--app-amber) !important; }
+</style>
 <div style="margin-top: 0.5rem;">
   <small style="color: var(--pico-muted-color)">{{len .}} document(s)</small>
-  <ul style="list-style: none; padding: 0; margin: 0.5rem 0; max-height: 260px; overflow-y: auto; border: var(--pico-border-width) solid var(--pico-form-element-border-color); border-radius: var(--pico-border-radius);">
+  <ul class="tag-doc-list" style="list-style: none; padding: 0; margin: 0.5rem 0; max-height: 260px; overflow-y: auto; border: 1px solid var(--app-border); border-radius: var(--pico-border-radius); background: var(--app-bg);">
     {{range .}}
     <li>
       <a href="#"
-         style="display: block; padding: 0.4rem 0.75rem; text-decoration: none; color: var(--pico-color); border-bottom: var(--pico-border-width) solid var(--pico-table-border-color);"
+         style="display: block; padding: 0.4rem 0.75rem; text-decoration: none; color: var(--pico-color); border-bottom: 1px solid var(--app-border); transition: background 0.15s, color 0.15s;"
          hx-on:click="document.getElementById('doc-id-input').value={{.ID}}; document.getElementById('selected-doc-label').textContent='{{.ID}} — {{.Title}}'; return false;">
-        <span style="color: var(--pico-muted-color); font-size: 0.8rem;">{{.ID}}</span>
-        {{.Title}}
+        <span class="tag-doc-id" style="color: var(--pico-muted-color); font-size: 0.8rem; font-family: 'IBM Plex Mono', monospace; margin-right: 0.4rem;">{{.ID}}</span>{{.Title}}
       </a>
     </li>
     {{end}}
