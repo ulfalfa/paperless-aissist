@@ -1,3 +1,10 @@
+## [0.21.2](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.21.1...v0.21.2) (2026-05-14)
+
+
+### Bug Fixes
+
+* correct chat input proportions and login button colour ([fd2cd2e](https://gitlab.com/ulfalfa/paperless-aissist/commit/fd2cd2ed3d16dda155a85dd8a9d0810cc34641b2))
+
 ## [0.21.1](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.21.0...v0.21.1) (2026-05-14)
 
 
