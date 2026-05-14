@@ -139,6 +139,7 @@ func init() {
 
 	// Partials don't define "content" so they can share one template set
 	partials = template.Must(template.New("").Funcs(tmplFunc).ParseFS(assets.FS,
+		"templates/save_form.html",
 		"templates/analyze_result.html",
 		"templates/tag_docs.html",
 		"templates/scan_status.html",
@@ -158,6 +159,7 @@ func init() {
 func pageTmpl(page string) *template.Template {
 	return template.Must(template.New("").Funcs(tmplFunc).ParseFS(assets.FS,
 		"templates/layout.html",
+		"templates/save_form.html",
 		"templates/analyze_result.html",
 		"templates/tag_docs.html",
 		"templates/scan_status.html",
@@ -237,6 +239,7 @@ func NewRouter(am *auth.Manager, paperlessToken string) http.Handler {
 	r.Post("/ui/rag/index", handleIndexRun)
 	r.Get("/ui/rag/status", handleIndexStatus)
 	r.Post("/ui/test/compare", handleTestCompare)
+	r.Post("/ui/test/apply-variant", handleApplyVariant)
 
 	return r
 }
@@ -936,6 +939,27 @@ func handleScanPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func fetchModels(host string, current ...string) []string {
+	oc := ollama.New(host, "")
+	models, _ := oc.ListModels()
+	for _, cur := range current {
+		if cur == "" {
+			continue
+		}
+		found := false
+		for _, m := range models {
+			if m == cur {
+				found = true
+				break
+			}
+		}
+		if !found {
+			models = append([]string{cur}, models...)
+		}
+	}
+	return models
+}
+
 func handleSettingsPage(w http.ResponseWriter, r *http.Request) {
 	cfg, _ := config.Load()
 	promptContent, _ := config.LoadPrompt(cfg.PromptFile)
@@ -944,6 +968,7 @@ func handleSettingsPage(w http.ResponseWriter, r *http.Request) {
 		Data: map[string]any{
 			"Config": cfg,
 			"Prompt": promptContent,
+			"Models": fetchModels(cfg.OllamaHost, cfg.OllamaModel, cfg.EmbedModel),
 		},
 	})
 }
@@ -1123,15 +1148,17 @@ func handleSettingsForm(w http.ResponseWriter, r *http.Request) {
 		RepeatPenalty:  repeatPenalty,
 		NumCtx:         numCtx,
 	}
+	prompt, _ := config.LoadPrompt(cfg.PromptFile)
+	models := fetchModels(cfg.OllamaHost, cfg.OllamaModel, cfg.EmbedModel)
 	if err := config.Save(cfg); err != nil {
-		renderPartial(w, "settings_form.html", map[string]any{"Config": cfg, "Error": err.Error()})
+		renderPartial(w, "settings_form.html", map[string]any{"Config": cfg, "Models": models, "Prompt": prompt, "Error": err.Error()})
 		return
 	}
 	scanner.Stop()
 	if cfg.ScanInterval > 0 {
 		scanner.Start(cfg.ScanInterval)
 	}
-	renderPartial(w, "settings_form.html", map[string]any{"Config": cfg, "Flash": "Settings saved"})
+	renderPartial(w, "settings_form.html", map[string]any{"Config": cfg, "Models": models, "Prompt": prompt, "Flash": "Settings saved"})
 }
 
 func handlePromptForm(w http.ResponseWriter, r *http.Request) {
@@ -1332,40 +1359,71 @@ func handleTestPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func resolveName(id *int, items []types.PaperlessItem) string {
+	if id == nil {
+		return ""
+	}
+	for _, item := range items {
+		if item.ID == *id {
+			return item.Name
+		}
+	}
+	return ""
+}
+
+func resolveTagNames(ids []int, items []types.PaperlessItem) []string {
+	byID := make(map[int]string, len(items))
+	for _, item := range items {
+		byID[item.ID] = item.Name
+	}
+	names := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if name, ok := byID[id]; ok {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
 func handleTestCompare(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
-	docIDStr := r.FormValue("documentId")
-	docID, err := strconv.Atoi(docIDStr)
+	docID, err := strconv.Atoi(r.FormValue("documentId"))
 	if err != nil || docID <= 0 {
 		renderPartial(w, "test_result.html", map[string]any{"Error": "Please enter a valid document ID"})
 		return
 	}
 
-	// Field names in template use prefix like "a_model", "a_temperature", etc.
-	parseOpts := func(prefix string) types.ModelOptions {
-		temperature, _ := strconv.ParseFloat(r.FormValue(prefix+"temperature"), 64)
-		topK, _ := strconv.Atoi(r.FormValue(prefix + "topK"))
-		topP, _ := strconv.ParseFloat(r.FormValue(prefix+"topP"), 64)
-		repeatPenalty, _ := strconv.ParseFloat(r.FormValue(prefix+"repeatPenalty"), 64)
-		numCtx, _ := strconv.Atoi(r.FormValue(prefix + "numCtx"))
-		return types.ModelOptions{
-			Model:         r.FormValue(prefix + "model"),
-			Temperature:   temperature,
-			TopK:          topK,
-			TopP:          topP,
-			RepeatPenalty: repeatPenalty,
-			NumCtx:        numCtx,
-			Think:         r.FormValue(prefix+"think") == "on",
-			UnloadAfter:   true,
-		}
+	temperature, _ := strconv.ParseFloat(r.FormValue("b_temperature"), 64)
+	topK, _ := strconv.Atoi(r.FormValue("b_topK"))
+	topP, _ := strconv.ParseFloat(r.FormValue("b_topP"), 64)
+	repeatPenalty, _ := strconv.ParseFloat(r.FormValue("b_repeatPenalty"), 64)
+	numCtx, _ := strconv.Atoi(r.FormValue("b_numCtx"))
+	optsB := types.ModelOptions{
+		Model:         r.FormValue("b_model"),
+		Temperature:   temperature,
+		TopK:          topK,
+		TopP:          topP,
+		RepeatPenalty: repeatPenalty,
+		NumCtx:        numCtx,
+		Think:         r.FormValue("b_think") == "on",
+		UnloadAfter:   true,
 	}
 
-	optsA := parseOpts("a_")
-	optsB := parseOpts("b_")
+	// Load current config opts for Side A display
+	cfg, _ := config.Load()
+	optsA := types.ModelOptions{
+		Model:         cfg.OllamaModel,
+		Temperature:   cfg.Temperature,
+		TopK:          cfg.TopK,
+		TopP:          cfg.TopP,
+		RepeatPenalty: cfg.RepeatPenalty,
+		NumCtx:        cfg.NumCtx,
+		Think:         cfg.Think,
+	}
 
 	// Run sequentially so models don't compete for GPU memory
 	sideA := map[string]any{"Opts": optsA}
-	respA, errA := analyzeDocument(docID, &optsA)
+	respA, errA := analyzeDocument(docID, nil)
 	if errA != nil {
 		sideA["Error"] = errA.Error()
 	} else {
@@ -1380,10 +1438,71 @@ func handleTestCompare(w http.ResponseWriter, r *http.Request) {
 		sideB["Resp"] = respB
 	}
 
+	// Build current paperless values from first successful response
+	var current map[string]any
+	var correspondents, docTypes, allTags []types.PaperlessItem
+	ref := respA
+	if ref == nil {
+		ref = respB
+	}
+	if ref != nil {
+		correspondents = ref.Correspondents
+		docTypes = ref.DocumentTypes
+		allTags = ref.Tags
+		doc := ref.Document
+		current = map[string]any{
+			"Title":        doc.Title,
+			"Created":      doc.Created,
+			"Correspondent": resolveName(doc.Correspondent, correspondents),
+			"DocumentType": resolveName(doc.DocumentType, docTypes),
+			"Tags":         resolveTagNames(doc.Tags, allTags),
+		}
+	}
+
 	renderPartial(w, "test_result.html", map[string]any{
-		"A": sideA,
-		"B": sideB,
+		"DocID":          docID,
+		"A":              sideA,
+		"B":              sideB,
+		"Current":        current,
+		"Correspondents": correspondents,
+		"DocumentTypes":  docTypes,
+		"AllTags":        allTags,
 	})
+}
+
+func handleApplyVariant(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	temperature, _ := strconv.ParseFloat(r.FormValue("temperature"), 64)
+	topK, _ := strconv.Atoi(r.FormValue("topK"))
+	topP, _ := strconv.ParseFloat(r.FormValue("topP"), 64)
+	repeatPenalty, _ := strconv.ParseFloat(r.FormValue("repeatPenalty"), 64)
+	numCtx, _ := strconv.Atoi(r.FormValue("numCtx"))
+	think := r.FormValue("think") == "true"
+	model := r.FormValue("model")
+
+	cfg, err := config.Load()
+	if err != nil {
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprintf(w, `<p class="error-msg">Failed to load config: %s</p>`, template.HTMLEscapeString(err.Error()))
+		return
+	}
+	if model != "" {
+		cfg.OllamaModel = model
+	}
+	cfg.Temperature = temperature
+	cfg.TopK = topK
+	cfg.TopP = topP
+	cfg.RepeatPenalty = repeatPenalty
+	cfg.NumCtx = numCtx
+	cfg.Think = think
+
+	if err := config.Save(cfg); err != nil {
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprintf(w, `<p class="error-msg">Failed to save: %s</p>`, template.HTMLEscapeString(err.Error()))
+		return
+	}
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(`<p class="flash">Variant applied — Settings updated.</p>`))
 }
 
 func namesOf(items []types.PaperlessItem) []string {

@@ -7,7 +7,11 @@
     <header>Ollama</header>
     <div class="grid">
       <label>Host<input type="text" name="ollamaHost" value="{{$cfg.OllamaHost}}"></label>
-      <label>Model<input type="text" name="ollamaModel" value="{{$cfg.OllamaModel}}"></label>
+      <label>Model
+        <select name="ollamaModel">
+          {{range .Models}}<option value="{{.}}" {{if eq . $cfg.OllamaModel}}selected{{end}}>{{.}}</option>{{end}}
+        </select>
+      </label>
     </div>
   </article>
   <article>
@@ -25,7 +29,11 @@
   <article>
     <header>RAG / Chat</header>
     <div class="grid">
-      <label>Embed Model<input type="text" name="embedModel" value="{{$cfg.EmbedModel}}" placeholder="bge-m3"></label>
+      <label>Embed Model
+        <select name="embedModel">
+          {{range .Models}}<option value="{{.}}" {{if eq . $cfg.EmbedModel}}selected{{end}}>{{.}}</option>{{end}}
+        </select>
+      </label>
       <label>Index Path<input type="text" name="indexPath" value="{{$cfg.IndexPath}}" placeholder="./data"></label>
     </div>
   </article>
