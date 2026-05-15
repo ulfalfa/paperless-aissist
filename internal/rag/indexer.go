@@ -237,3 +237,39 @@ func buildIndexText(doc types.PaperlessDocument, tagNames, correspondentNames, d
 
 	return meta + "\n\n" + content
 }
+
+// SearchResult is a single hit from the vector index.
+type SearchResult struct {
+	DocID   int     `json:"doc_id"`
+	Title   string  `json:"title"`
+	Score   float64 `json:"score"`
+	Snippet string  `json:"snippet"`
+}
+
+// SearchText embeds query and returns the top-k most similar documents.
+func (idx *Indexer) SearchText(ctx context.Context, ollamaHost, embedModel, query string, k int) ([]SearchResult, error) {
+	oc := ollama.New(ollamaHost, "")
+	emb, err := oc.Embed(embedModel, query)
+	if err != nil {
+		return nil, fmt.Errorf("embed query: %w", err)
+	}
+	hits, err := idx.store.Search(ctx, emb, k)
+	if err != nil {
+		return nil, fmt.Errorf("vector search: %w", err)
+	}
+	results := make([]SearchResult, 0, len(hits))
+	for _, h := range hits {
+		id, _ := strconv.Atoi(h.ID)
+		snippet := h.Content
+		if len(snippet) > 400 {
+			snippet = snippet[:400] + "…"
+		}
+		results = append(results, SearchResult{
+			DocID:   id,
+			Title:   h.Metadata["title"],
+			Score:   float64(h.Similarity),
+			Snippet: snippet,
+		})
+	}
+	return results, nil
+}

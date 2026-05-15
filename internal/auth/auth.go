@@ -142,7 +142,7 @@ func (m *Manager) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-// TokenMiddleware protects a route with a static Bearer token (e.g. for MCP).
+// TokenMiddleware protects a route with a static Bearer token.
 func TokenMiddleware(token string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

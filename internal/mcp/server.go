@@ -11,6 +11,7 @@ import (
 	"github.com/ulf/paperless-aissist/internal/config"
 	"github.com/ulf/paperless-aissist/internal/ollama"
 	"github.com/ulf/paperless-aissist/internal/paperless"
+	"github.com/ulf/paperless-aissist/internal/rag"
 	"github.com/ulf/paperless-aissist/internal/tools"
 	"github.com/ulf/paperless-aissist/internal/types"
 	"github.com/ulf/paperless-aissist/internal/validate"
@@ -197,6 +198,30 @@ func NewHTTPHandler() http.Handler {
 			return mcpsdk.NewToolResultError(err.Error()), nil
 		}
 		return mcpsdk.NewToolResultText(fmt.Sprintf("Document %d updated successfully", id)), nil
+	})
+
+	// rag_search
+	s.AddTool(mcpsdk.NewTool("rag_search",
+		mcpsdk.WithDescription("Search documents using semantic vector search (RAG / embeddings)"),
+		mcpsdk.WithString("query", mcpsdk.Required(), mcpsdk.Description("Natural language query")),
+		mcpsdk.WithNumber("max_results", mcpsdk.Description("Max results (default 5)")),
+	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		args := req.GetArguments()
+		query, _ := args["query"].(string)
+		k := 5
+		if n, ok := args["max_results"].(float64); ok && n > 0 {
+			k = int(n)
+		}
+		idx := rag.Global()
+		if idx == nil {
+			return mcpsdk.NewToolResultError("RAG index not initialized"), nil
+		}
+		cfg, _ := config.Load()
+		results, err := idx.SearchText(ctx, cfg.OllamaHost, cfg.EmbedModel, query, k)
+		if err != nil {
+			return mcpsdk.NewToolResultError(err.Error()), nil
+		}
+		return jsonResult(results)
 	})
 
 	return server.NewStreamableHTTPServer(s)

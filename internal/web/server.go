@@ -175,7 +175,7 @@ func pageTmpl(page string) *template.Template {
 	))
 }
 
-func NewRouter(am *auth.Manager, paperlessToken string) http.Handler {
+func NewRouter(am *auth.Manager, mcpToken string) http.Handler {
 	authManager = am
 
 	r := chi.NewRouter()
@@ -190,11 +190,13 @@ func NewRouter(am *auth.Manager, paperlessToken string) http.Handler {
 	r.Post("/login", handleLoginForm)
 	r.Post("/logout", handleLogout)
 
-	// MCP endpoint — protected by paperless API token, not session
-	mcpHandler := mcp.NewHTTPHandler()
-	tokenGuard := auth.TokenMiddleware(paperlessToken)
-	r.With(tokenGuard).Handle("/mcp", mcpHandler)
-	r.With(tokenGuard).Handle("/mcp/*", mcpHandler)
+	// MCP endpoint — only mounted when MCP_API_TOKEN is configured
+	if mcpToken != "" {
+		mcpHandler := mcp.NewHTTPHandler()
+		tokenGuard := auth.TokenMiddleware(mcpToken)
+		r.With(tokenGuard).Handle("/mcp", mcpHandler)
+		r.With(tokenGuard).Handle("/mcp/*", mcpHandler)
+	}
 
 	// API
 	r.Get("/api/config", handleGetConfig)
@@ -1147,6 +1149,7 @@ func handleSettingsForm(w http.ResponseWriter, r *http.Request) {
 		TopP:           topP,
 		RepeatPenalty:  repeatPenalty,
 		NumCtx:         numCtx,
+		MCPToken:       r.FormValue("mcpToken"),
 	}
 	prompt, _ := config.LoadPrompt(cfg.PromptFile)
 	models := fetchModels(cfg.OllamaHost, cfg.OllamaModel, cfg.EmbedModel)

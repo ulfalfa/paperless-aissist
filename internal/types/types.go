@@ -153,4 +153,5 @@ type AppConfig struct {
 	RepeatPenalty float64 `json:"repeatPenalty"`
 	NumCtx        int     `json:"numCtx"`
 	Think         bool    `json:"think"`
+	MCPToken      string  `json:"mcpToken"`
 }

@@ -20,6 +20,10 @@
     <label>API Token<input type="password" name="paperlessApiToken" value="{{$cfg.PaperlessToken}}"></label>
   </article>
   <article>
+    <header>MCP Server</header>
+    <label>Bearer Token <small style="font-weight:normal">(leer = MCP deaktiviert)</small><input type="password" name="mcpToken" value="{{$cfg.MCPToken}}" placeholder="leave empty to disable /mcp"></label>
+  </article>
+  <article>
     <header>Scanner</header>
     <div class="grid">
       <label>Scan Tag<input type="text" name="scanTag" value="{{$cfg.ScanTag}}"></label>

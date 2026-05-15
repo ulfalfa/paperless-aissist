@@ -46,6 +46,7 @@ func Load() (*types.AppConfig, error) {
 		TopP:           topP,
 		RepeatPenalty:  repeatPenalty,
 		NumCtx:         numCtx,
+		MCPToken:       getEnv("MCP_API_TOKEN", ""),
 	}, nil
 }
 
@@ -71,6 +72,7 @@ func Save(cfg *types.AppConfig) error {
 		fmt.Sprintf("TOP_P=%v", cfg.TopP),
 		fmt.Sprintf("REPEAT_PENALTY=%v", cfg.RepeatPenalty),
 		fmt.Sprintf("NUM_CTX=%d", cfg.NumCtx),
+		"MCP_API_TOKEN=" + cfg.MCPToken,
 	}
 	return os.WriteFile(envFile, []byte(strings.Join(lines, "\n")+"\n"), 0600)
 }
