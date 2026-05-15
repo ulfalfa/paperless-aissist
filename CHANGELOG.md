@@ -1,3 +1,10 @@
+# [0.22.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.21.2...v0.22.0) (2026-05-15)
+
+
+### Features
+
+* add MCP_API_TOKEN config and rag_search tool ([52be61a](https://gitlab.com/ulfalfa/paperless-aissist/commit/52be61a8ccf82761aa071f49ee2aa908c6f65a87))
+
 ## [0.21.2](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.21.1...v0.21.2) (2026-05-14)
 
 
