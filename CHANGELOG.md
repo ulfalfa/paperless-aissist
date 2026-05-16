@@ -1,3 +1,10 @@
+## [0.22.1](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.22.0...v0.22.1) (2026-05-16)
+
+
+### Bug Fixes
+
+* make MCP server stateless to avoid session-id requirement ([6bd0db8](https://gitlab.com/ulfalfa/paperless-aissist/commit/6bd0db8179b1ebc23d27153e3ef7697d3f4eb2ba))
+
 # [0.22.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.21.2...v0.22.0) (2026-05-15)
 
 
