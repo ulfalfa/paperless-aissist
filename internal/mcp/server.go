@@ -224,7 +224,7 @@ func NewHTTPHandler() http.Handler {
 		return jsonResult(results)
 	})
 
-	return server.NewStreamableHTTPServer(s)
+	return server.NewStreamableHTTPServer(s, server.WithStateLess(true))
 }
 
 func namesOf(items []types.PaperlessItem) []string {
