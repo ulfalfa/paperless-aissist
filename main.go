@@ -18,6 +18,7 @@ import (
 	"github.com/ulf/paperless-aissist/internal/promptlog"
 	"github.com/ulf/paperless-aissist/internal/rag"
 	"github.com/ulf/paperless-aissist/internal/scanner"
+	"github.com/ulf/paperless-aissist/internal/tools"
 	"github.com/ulf/paperless-aissist/internal/types"
 	"github.com/ulf/paperless-aissist/internal/validate"
 	"github.com/ulf/paperless-aissist/internal/web"
@@ -81,6 +82,8 @@ func runServer() {
 	if err := rag.Init(cfg.IndexPath); err != nil {
 		log.Fatal("rag init:", err)
 	}
+	rag.TriggerAsyncRefresh()
+	tools.AfterUpload = rag.TriggerAsyncRefresh
 	if cfg.LogPrompts {
 		promptlog.Init(cfg.IndexPath)
 		logger.Info("Prompt logging enabled", cfg.IndexPath+"/prompts.jsonl")

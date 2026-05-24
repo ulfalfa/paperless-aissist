@@ -936,7 +936,7 @@ func handleScanPage(w http.ResponseWriter, r *http.Request) {
 		ActivePage: "scan",
 		Data: map[string]any{
 			"ScanStatus":  scanner.GetStatus(),
-			"IndexStatus": rag.Global().GetStatus(),
+			"IndexStatus": enrichedIndexStatus(),
 		},
 	})
 }
@@ -1183,7 +1183,7 @@ func handleChatPage(w http.ResponseWriter, r *http.Request) {
 	render(w, "chat.html", pageData{
 		ActivePage: "chat",
 		Data: map[string]any{
-			"IndexStatus":  rag.Global().GetStatus(),
+			"IndexStatus":  enrichedIndexStatus(),
 			"Models":       models,
 			"DefaultModel": cfg.OpenAIModel,
 			"ThinkDefault": cfg.Think,
@@ -1326,7 +1326,7 @@ func handleChatStatus(w http.ResponseWriter, r *http.Request) {
 func handleIndexRun(w http.ResponseWriter, r *http.Request) {
 	if rag.Global().IsRunning() {
 		renderPartial(w, "index_status.html", map[string]any{
-			"Status": rag.Global().GetStatus(),
+			"Status": enrichedIndexStatus(),
 			"Flash":  "Indexing already running",
 		})
 		return
@@ -1339,15 +1339,32 @@ func handleIndexRun(w http.ResponseWriter, r *http.Request) {
 		flash = "Full re-index started"
 	}
 	renderPartial(w, "index_status.html", map[string]any{
-		"Status": rag.Global().GetStatus(),
+		"Status": enrichedIndexStatus(),
 		"Flash":  flash,
 	})
 }
 
 func handleIndexStatus(w http.ResponseWriter, r *http.Request) {
 	renderPartial(w, "index_status.html", map[string]any{
-		"Status": rag.Global().GetStatus(),
+		"Status": enrichedIndexStatus(),
 	})
+}
+
+func enrichedIndexStatus() types.IndexStatus {
+	s := rag.Global().GetStatus()
+	cfg, err := config.Load()
+	if err != nil {
+		return s
+	}
+	pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
+	if total, err := pc.CountDocuments(); err == nil {
+		s.PaperlessTotal = total
+		s.MissingCount = total - s.DocCount
+		if s.MissingCount < 0 {
+			s.MissingCount = 0
+		}
+	}
+	return s
 }
 
 func handleTestPage(w http.ResponseWriter, r *http.Request) {

@@ -19,7 +19,13 @@
             <small style="color: var(--pico-del-color);"> · {{.Status.Errors}} errors</small>
           {{end}}
         {{else if gt .Status.DocCount 0}}
-          <strong style="color: green;">● {{.Status.DocCount}} documents indexed</strong>
+          {{if and (gt .Status.PaperlessTotal 0) (gt .Status.MissingCount 0)}}
+            <strong style="color: orange;">⚠ {{.Status.DocCount}} / {{.Status.PaperlessTotal}} indexed ({{.Status.MissingCount}} missing)</strong>
+          {{else if gt .Status.PaperlessTotal 0}}
+            <strong style="color: green;">● {{.Status.DocCount}} / {{.Status.PaperlessTotal}} indexed</strong>
+          {{else}}
+            <strong style="color: green;">● {{.Status.DocCount}} documents indexed</strong>
+          {{end}}
           {{if .Status.LastRun}}
             <small style="color: var(--pico-muted-color);"> · {{.Status.LastRun}}</small>
           {{end}}

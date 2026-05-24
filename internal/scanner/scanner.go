@@ -254,10 +254,8 @@ func RunOnce() {
 	mu.Unlock()
 	logger.Info(fmt.Sprintf("Scanner: done, %d updated, %d errors", count, len(errs)))
 
-	if count > 0 {
-		logger.Info("Scanner: triggering RAG index sync for new documents")
-		go rag.Global().RunOnce(false)
-	}
+	logger.Info("Scanner: triggering RAG index sync")
+	go rag.Global().RunOnce(false)
 }
 
 func namesOf(items []types.PaperlessItem) []string {

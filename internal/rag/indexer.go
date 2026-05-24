@@ -29,6 +29,14 @@ func Init(indexPath string) error {
 // Global returns the package-level indexer (must call Init first).
 func Global() *Indexer { return globalIndexer }
 
+// TriggerAsyncRefresh starts an incremental index sync in the background.
+// No-op if the global indexer is not initialized.
+func TriggerAsyncRefresh() {
+	if globalIndexer != nil {
+		go globalIndexer.RunOnce(false)
+	}
+}
+
 // Indexer manages the RAG vector index and background indexing state.
 type Indexer struct {
 	mu     sync.Mutex

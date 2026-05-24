@@ -57,12 +57,14 @@ type DocumentUpdate struct {
 
 // IndexStatus reports the state of the RAG indexer
 type IndexStatus struct {
-	Running  bool    `json:"running"`
-	Total    int     `json:"total"`
-	Done     int     `json:"done"`
-	Errors   int     `json:"errors"`
-	LastRun  *string `json:"lastRun"`
-	DocCount int     `json:"docCount"`
+	Running        bool    `json:"running"`
+	Total          int     `json:"total"`
+	Done           int     `json:"done"`
+	Errors         int     `json:"errors"`
+	LastRun        *string `json:"lastRun"`
+	DocCount       int     `json:"docCount"`
+	PaperlessTotal int     `json:"paperlessTotal"`
+	MissingCount   int     `json:"missingCount"`
 }
 
 // ChatSource is a document cited in a RAG answer

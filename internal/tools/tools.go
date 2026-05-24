@@ -10,6 +10,10 @@ import (
 	"github.com/ulf/paperless-aissist/internal/types"
 )
 
+// AfterUpload is called after a successful upload_document operation.
+// Set by main.go to rag.TriggerAsyncRefresh to avoid a circular import.
+var AfterUpload func()
+
 // Result is the unified return value from Execute.
 // Text is a formatted string for use as an LLM tool message.
 // Data is the raw Go value for JSON serialization (MCP responses).
@@ -539,6 +543,9 @@ func Execute(name string, args json.RawMessage, pc *paperless.Client, baseURL st
 		status, taskResult, err := pc.WaitForTask(taskID, 60)
 		if err != nil {
 			return nil, err
+		}
+		if status == "SUCCESS" && AfterUpload != nil {
+			AfterUpload()
 		}
 		return &Result{
 			Text: fmt.Sprintf("document %q uploaded: status=%s result=%s", p.Filename, status, taskResult),

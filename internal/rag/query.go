@@ -225,12 +225,14 @@ func buildTools() []openai.ChatTool {
 			Type: "function",
 			Function: openai.ChatToolFunction{
 				Name: "search_documents_semantic",
-				Description: "Search the document archive using semantic/vector search. " +
+				Description: "Search the document archive by content similarity (vector search). " +
 					"Before writing the query, infer what type of document would contain the answer — for example: " +
 					"a question about a bank transfer implies 'Kontoauszug', taxes imply 'Steuerbescheid', " +
 					"insurance implies 'Police' or 'Rechnung', employment implies 'Arbeitsvertrag' or 'Zeugnis'. " +
 					"Include the inferred document type AND any person/company names in the query string. " +
 					"Example: for 'Wann habe ich an Müller überwiesen?' use query 'Überweisung Müller Kontoauszug'. " +
+					"IMPORTANT: Results are sorted by content similarity, NOT by date. " +
+					"For questions like 'latest/newest/most recent X' use find_documents with correspondent_name or document_type_name instead — it guarantees chronological order. " +
 					"Do NOT call this if pinned documents in the system prompt already cover the topic.",
 				Parameters: json.RawMessage(`{
 					"type": "object",
@@ -338,10 +340,12 @@ func buildTools() []openai.ChatTool {
 			Function: openai.ChatToolFunction{
 				Name: "find_documents",
 				Description: "Find documents using combined filters: text query, correspondent, document type, tags, and date range. " +
-					"Use this when the user asks for documents from a specific sender in a specific time period, or filtered by multiple criteria. " +
+					"Best choice for RECENCY questions ('die letzte Rechnung von Telekom', 'letzter Werkstattbesuch Galaxy', 'aktuellste Unterlagen von X'): " +
+					"set correspondent_name or document_type_name, leave ordering at default (-created) — returns the absolute newest document first, guaranteed. " +
+					"Filters via Paperless metadata, not full-text — always complete, never misses a new document. " +
 					"Examples: 'Rechnung von Telekom aus 2024' → correspondent_name=Telekom, document_type_name=Rechnung, created_from=2024-01-01, created_to=2024-12-31. " +
 					"'Was kam im März von der Krankenkasse?' → correspondent_name=Krankenkasse, created_from=YYYY-03-01, created_to=YYYY-03-31. " +
-					"Ordering defaults to newest first (-created). Use limit to cap the result size.",
+					"Use limit to cap the result size.",
 				Parameters: json.RawMessage(`{
 					"type": "object",
 					"properties": {
@@ -376,9 +380,9 @@ func buildTools() []openai.ChatTool {
 			Type: "function",
 			Function: openai.ChatToolFunction{
 				Name: "list_recent_documents",
-				Description: "List the most recently created documents. " +
-					"Use when the user asks 'what came in recently', 'what's new', or 'what was added this month'. " +
-					"Optionally filter by a start date via the 'since' parameter.",
+				Description: "List the most recently created documents across the entire archive, without a topic filter. " +
+					"Use for 'what came in recently', 'what's new this week', 'what was added this month'. " +
+					"NOT for 'the latest invoice from X' or 'last visit to Y' — use find_documents with correspondent_name for those.",
 				Parameters: json.RawMessage(`{
 					"type": "object",
 					"properties": {

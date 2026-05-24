@@ -113,8 +113,9 @@ func NewHTTPHandler() http.Handler {
 	// find_documents
 	s.AddTool(mcpsdk.NewTool("find_documents",
 		mcpsdk.WithDescription("Find documents using combined filters: correspondent, document type, tags, date range, and optional freetext query. "+
-			"Use when multiple criteria apply — e.g. 'Rechnung von Telekom aus 2024' or 'Dokumente vom Finanzamt im Q1 2025'. "+
-			"All parameters are optional; omit those not needed. Results are sorted newest-first by default."),
+			"Best choice for RECENCY questions ('die letzte Rechnung von Telekom', 'letzter Werkstattbesuch Galaxy', 'aktuellste Unterlagen von X'): "+
+			"set correspondent_name or document_type_name, results are sorted newest-first by default — always complete, never misses a new document. "+
+			"All parameters are optional; omit those not needed."),
 		mcpsdk.WithString("query", mcpsdk.Description("Optional freetext search")),
 		mcpsdk.WithString("correspondent_name", mcpsdk.Description("Filter by correspondent name (case-insensitive)")),
 		mcpsdk.WithString("document_type_name", mcpsdk.Description("Filter by document type (case-insensitive)")),
@@ -138,7 +139,9 @@ func NewHTTPHandler() http.Handler {
 
 	// list_recent_documents
 	s.AddTool(mcpsdk.NewTool("list_recent_documents",
-		mcpsdk.WithDescription("List the most recently created documents. Use for 'what came in recently', 'what's new', or 'show me the last N documents'."),
+		mcpsdk.WithDescription("List the most recently created documents across the entire archive, without a topic filter. "+
+			"Use for 'what came in recently', 'what's new this week', 'what was added this month'. "+
+			"NOT for 'the latest invoice from X' or 'last visit to Y' — use find_documents with correspondent_name for those."),
 		mcpsdk.WithNumber("limit", mcpsdk.Description("Max results (default 10)")),
 		mcpsdk.WithString("since", mcpsdk.Description("Only include documents created on or after this date (YYYY-MM-DD)")),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
@@ -325,12 +328,14 @@ func NewHTTPHandler() http.Handler {
 
 	// search_documents_semantic
 	s.AddTool(mcpsdk.NewTool("search_documents_semantic",
-		mcpsdk.WithDescription("Search the document archive using semantic/vector search (embeddings). "+
+		mcpsdk.WithDescription("Search the document archive by content similarity (vector search). "+
 			"Before writing the query, infer what type of document would contain the answer — for example: "+
 			"a question about a bank transfer implies 'Kontoauszug', taxes imply 'Steuerbescheid', "+
 			"insurance implies 'Police' or 'Rechnung', employment implies 'Arbeitsvertrag' or 'Zeugnis'. "+
 			"Include the inferred document type AND any person/company names in the query string. "+
-			"Example: for 'Wann habe ich an Müller überwiesen?' use query 'Überweisung Müller Kontoauszug'."),
+			"Example: for 'Wann habe ich an Müller überwiesen?' use query 'Überweisung Müller Kontoauszug'. "+
+			"IMPORTANT: Results are sorted by content similarity, NOT by date. "+
+			"For questions like 'latest/newest/most recent X' use find_documents with correspondent_name or document_type_name instead — it guarantees chronological order."),
 		mcpsdk.WithString("query", mcpsdk.Required(), mcpsdk.Description("Descriptive semantic search query")),
 		mcpsdk.WithNumber("max_docs", mcpsdk.Description("Max results (default 5)")),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
