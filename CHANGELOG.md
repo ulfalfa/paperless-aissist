@@ -1,3 +1,10 @@
+## [0.26.1](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.26.0...v0.26.1) (2026-05-24)
+
+
+### Bug Fixes
+
+* return download_document as MCP blob resource instead of JSON text ([5028205](https://gitlab.com/ulfalfa/paperless-aissist/commit/5028205871401b100b2b9b3f8e7acbc51304b9b6))
+
 # [0.26.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.25.0...v0.26.0) (2026-05-24)
 
 
