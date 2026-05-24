@@ -1,3 +1,10 @@
+# [0.23.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.22.1...v0.23.0) (2026-05-24)
+
+
+### Features
+
+* add find_documents, semantic search, tagging and download tools ([7ca24bf](https://gitlab.com/ulfalfa/paperless-aissist/commit/7ca24bf4b043d1215657c5f926ef1d891acae8a4))
+
 ## [0.22.1](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.22.0...v0.22.1) (2026-05-16)
 
 
