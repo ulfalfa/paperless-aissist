@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -191,12 +192,25 @@ func NewHTTPHandler() http.Handler {
 
 	// download_document
 	s.AddTool(mcpsdk.NewTool("download_document",
-		mcpsdk.WithDescription("Download the original file of a document as a base64-encoded string. Returns base64 content and content_type (usually application/pdf)."),
+		mcpsdk.WithDescription("Download the original file of a document as an MCP blob resource (binary, not truncated). Returns the file with its MIME type — typically application/pdf."),
 		mcpsdk.WithNumber("id", mcpsdk.Required(), mcpsdk.Description("Document ID")),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		args := req.GetArguments()
-		b, _ := json.Marshal(map[string]any{"id": args["id"]})
-		return runTool("download_document", b)
+		id := int(args["id"].(float64))
+		cfg, _ := config.Load()
+		pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
+		data, contentType, err := pc.GetDocumentDownload(id)
+		if err != nil {
+			return mcpsdk.NewToolResultError(err.Error()), nil
+		}
+		return mcpsdk.NewToolResultResource(
+			fmt.Sprintf("document %d: %d bytes (%s)", id, len(data), contentType),
+			mcpsdk.BlobResourceContents{
+				URI:      fmt.Sprintf("%s/api/documents/%d/download/", cfg.PaperlessURL, id),
+				MIMEType: contentType,
+				Blob:     base64.StdEncoding.EncodeToString(data),
+			},
+		), nil
 	})
 
 	// upload_document
