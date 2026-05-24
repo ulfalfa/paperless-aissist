@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/ulf/paperless-aissist/internal/types"
@@ -204,6 +205,158 @@ func (c *Client) CountDocuments() (int, error) {
 		return 0, err
 	}
 	return page.Count, nil
+}
+
+// FindOptions holds filter parameters for FindDocuments.
+type FindOptions struct {
+	Query           string
+	CorrespondentID *int
+	DocumentTypeID  *int
+	TagIDs          []int
+	CreatedFrom     string // YYYY-MM-DD
+	CreatedTo       string // YYYY-MM-DD
+	Ordering        string // default "-created"
+	PageSize        int    // default 50
+}
+
+// FindDocuments fetches the first page of documents matching the given filters.
+// Unlike ListDocumentsByX methods, this does NOT follow pagination — it returns
+// at most PageSize results to keep latency predictable for agent use.
+func (c *Client) FindDocuments(opts FindOptions) ([]types.PaperlessDocument, error) {
+	params := url.Values{}
+	if opts.Query != "" {
+		params.Set("query", opts.Query)
+	}
+	if opts.CorrespondentID != nil {
+		params.Set("correspondent__id", strconv.Itoa(*opts.CorrespondentID))
+	}
+	if opts.DocumentTypeID != nil {
+		params.Set("document_type__id", strconv.Itoa(*opts.DocumentTypeID))
+	}
+	if len(opts.TagIDs) > 0 {
+		parts := make([]string, len(opts.TagIDs))
+		for i, t := range opts.TagIDs {
+			parts[i] = strconv.Itoa(t)
+		}
+		params.Set("tags__id__in", strings.Join(parts, ","))
+	}
+	if opts.CreatedFrom != "" {
+		params.Set("created__date__gte", opts.CreatedFrom)
+	}
+	if opts.CreatedTo != "" {
+		params.Set("created__date__lte", opts.CreatedTo)
+	}
+	ordering := opts.Ordering
+	if ordering == "" {
+		ordering = "-created"
+	}
+	params.Set("ordering", ordering)
+	pageSize := opts.PageSize
+	if pageSize <= 0 {
+		pageSize = 50
+	}
+	params.Set("page_size", strconv.Itoa(pageSize))
+
+	fullURL := c.baseURL + "/api/documents/?" + params.Encode()
+	req, err := http.NewRequest("GET", fullURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Token "+c.token)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("find_documents: %d %s", resp.StatusCode, string(body))
+	}
+	var page listResponse[types.PaperlessDocument]
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		return nil, err
+	}
+	return page.Results, nil
+}
+
+// GetDocumentDownload fetches the original binary file for a document.
+// Returns the file bytes and the Content-Type header value.
+func (c *Client) GetDocumentDownload(id int) ([]byte, string, error) {
+	path := fmt.Sprintf("/api/documents/%d/download/", id)
+	req, err := http.NewRequest("GET", c.baseURL+path, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	req.Header.Set("Authorization", "Token "+c.token)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, "", fmt.Errorf("download %d: %d %s", id, resp.StatusCode, string(body))
+	}
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, "", err
+	}
+	ct := resp.Header.Get("Content-Type")
+	if ct == "" {
+		ct = "application/pdf"
+	}
+	return data, ct, nil
+}
+
+// AddTags adds tag IDs to a document without removing existing tags. Idempotent.
+func (c *Client) AddTags(id int, tagIDs []int) error {
+	doc, err := c.GetDocument(id)
+	if err != nil {
+		return err
+	}
+	existing := make(map[int]bool, len(doc.Tags))
+	for _, t := range doc.Tags {
+		existing[t] = true
+	}
+	for _, t := range tagIDs {
+		existing[t] = true
+	}
+	merged := make([]int, 0, len(existing))
+	for t := range existing {
+		merged = append(merged, t)
+	}
+	return c.UpdateDocument(id, types.DocumentUpdate{
+		Title:         doc.Title,
+		Created:       doc.Created,
+		Correspondent: doc.Correspondent,
+		DocumentType:  doc.DocumentType,
+		Tags:          merged,
+	})
+}
+
+// RemoveTags removes tag IDs from a document. Idempotent — no error if tag not present.
+func (c *Client) RemoveTags(id int, tagIDs []int) error {
+	doc, err := c.GetDocument(id)
+	if err != nil {
+		return err
+	}
+	remove := make(map[int]bool, len(tagIDs))
+	for _, t := range tagIDs {
+		remove[t] = true
+	}
+	var remaining []int
+	for _, t := range doc.Tags {
+		if !remove[t] {
+			remaining = append(remaining, t)
+		}
+	}
+	return c.UpdateDocument(id, types.DocumentUpdate{
+		Title:         doc.Title,
+		Created:       doc.Created,
+		Correspondent: doc.Correspondent,
+		DocumentType:  doc.DocumentType,
+		Tags:          remaining,
+	})
 }
 
 // ResolveOrCreate finds an item by name (case-insensitive) or creates it if missing.
