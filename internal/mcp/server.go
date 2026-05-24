@@ -334,23 +334,24 @@ func NewHTTPHandler() http.Handler {
 			"insurance implies 'Police' or 'Rechnung', employment implies 'Arbeitsvertrag' or 'Zeugnis'. "+
 			"Include the inferred document type AND any person/company names in the query string. "+
 			"Example: for 'Wann habe ich an Müller überwiesen?' use query 'Überweisung Müller Kontoauszug'. "+
-			"IMPORTANT: Results are sorted by content similarity, NOT by date. "+
-			"For questions like 'latest/newest/most recent X' use find_documents with correspondent_name or document_type_name instead — it guarantees chronological order."),
+			"Default sort is by content similarity. Use sort_by='date' for 'aktuellste/letzte/neueste X' questions — re-sorts the top results by document creation date (newest first)."),
 		mcpsdk.WithString("query", mcpsdk.Required(), mcpsdk.Description("Descriptive semantic search query")),
-		mcpsdk.WithNumber("max_docs", mcpsdk.Description("Max results (default 5)")),
+		mcpsdk.WithNumber("max_docs", mcpsdk.Description("Max results (default 10)")),
+		mcpsdk.WithString("sort_by", mcpsdk.Description("Sort order: 'relevance' (default, by similarity) or 'date' (newest document first)")),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		args := req.GetArguments()
 		query, _ := args["query"].(string)
-		k := 5
+		k := 10
 		if n, ok := args["max_docs"].(float64); ok && n > 0 {
 			k = int(n)
 		}
+		sortBy, _ := args["sort_by"].(string)
 		idx := rag.Global()
 		if idx == nil {
 			return mcpsdk.NewToolResultError("RAG index not initialized"), nil
 		}
 		cfg, _ := config.Load()
-		results, err := idx.SearchText(ctx, cfg.OpenAIBaseURL, cfg.EmbedModel, cfg.OpenAIAPIKey, query, k)
+		results, err := idx.SearchText(ctx, cfg.OpenAIBaseURL, cfg.EmbedModel, cfg.OpenAIAPIKey, query, k, sortBy)
 		if err != nil {
 			return mcpsdk.NewToolResultError(err.Error()), nil
 		}

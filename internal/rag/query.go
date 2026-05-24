@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -141,10 +142,11 @@ func (idx *Indexer) Query(
 				var args struct {
 					Query   string `json:"query"`
 					MaxDocs int    `json:"max_docs"`
+					SortBy  string `json:"sort_by"`
 				}
 				_ = json.Unmarshal(tc.Function.Arguments, &args)
 				if args.MaxDocs <= 0 {
-					args.MaxDocs = 5
+					args.MaxDocs = 10
 				}
 
 				emb, embedErr := oc.Embed(embedModel, args.Query)
@@ -159,6 +161,21 @@ func (idx *Indexer) Query(
 					} else if len(results) == 0 {
 						text = "No documents found for this query."
 					} else {
+						if args.SortBy == "date" {
+							sort.SliceStable(results, func(i, j int) bool {
+								ci, cj := results[i].Metadata["created"], results[j].Metadata["created"]
+								if ci == "" && cj == "" {
+									return false
+								}
+								if ci == "" {
+									return false
+								}
+								if cj == "" {
+									return true
+								}
+								return ci > cj
+							})
+						}
 						var parts []string
 						for _, r := range results {
 							title := r.Metadata["title"]
@@ -231,14 +248,14 @@ func buildTools() []openai.ChatTool {
 					"insurance implies 'Police' or 'Rechnung', employment implies 'Arbeitsvertrag' or 'Zeugnis'. " +
 					"Include the inferred document type AND any person/company names in the query string. " +
 					"Example: for 'Wann habe ich an Müller überwiesen?' use query 'Überweisung Müller Kontoauszug'. " +
-					"IMPORTANT: Results are sorted by content similarity, NOT by date. " +
-					"For questions like 'latest/newest/most recent X' use find_documents with correspondent_name or document_type_name instead — it guarantees chronological order. " +
+					"Default sort is by content similarity. Use sort_by='date' for 'aktuellste/letzte/neueste X' questions — re-sorts the top results by document creation date (newest first). " +
 					"Do NOT call this if pinned documents in the system prompt already cover the topic.",
 				Parameters: json.RawMessage(`{
 					"type": "object",
 					"properties": {
-						"query": {"type": "string", "description": "Descriptive search query"},
-						"max_docs": {"type": "integer", "description": "Max results to return (default 5)"}
+						"query":   {"type": "string",  "description": "Descriptive search query"},
+						"max_docs":{"type": "integer", "description": "Max results to return (default 10)"},
+						"sort_by": {"type": "string",  "description": "Sort order: 'relevance' (default, by similarity) or 'date' (newest document first)"}
 					},
 					"required": ["query"]
 				}`),

@@ -73,7 +73,7 @@ func (s *Store) AllIndexedIDs() []string {
 }
 
 // Upsert stores a document embedding, replacing any previous version.
-func (s *Store) Upsert(ctx context.Context, id, title, content, modified string, embedding []float32) error {
+func (s *Store) Upsert(ctx context.Context, id, title, content, modified, created string, embedding []float32) error {
 	// Delete existing entry if present (chromem errors on duplicate IDs)
 	if _, exists := s.meta[id]; exists {
 		_ = s.collection.Delete(ctx, nil, nil, id)
@@ -82,7 +82,7 @@ func (s *Store) Upsert(ctx context.Context, id, title, content, modified string,
 		ID:        id,
 		Content:   content,
 		Embedding: embedding,
-		Metadata:  map[string]string{"title": title, "modified": modified},
+		Metadata:  map[string]string{"title": title, "modified": modified, "created": created},
 	}
 	if err := s.collection.AddDocuments(ctx, []chromem.Document{doc}, 1); err != nil {
 		return err

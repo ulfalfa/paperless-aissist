@@ -3,6 +3,7 @@ package rag
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -194,7 +195,7 @@ func (idx *Indexer) RunOnce(full bool) {
 			continue
 		}
 		id := strconv.Itoa(doc.ID)
-		if err := idx.store.Upsert(ctx, id, doc.Title, text, doc.Modified, emb); err != nil {
+		if err := idx.store.Upsert(ctx, id, doc.Title, text, doc.Modified, doc.Created, emb); err != nil {
 			logger.Error(fmt.Sprintf("RAG indexer: store doc %d failed", doc.ID), err.Error())
 			idx.mu.Lock()
 			idx.status.Errors++
@@ -250,12 +251,14 @@ func buildIndexText(doc types.PaperlessDocument, tagNames, correspondentNames, d
 type SearchResult struct {
 	DocID   int     `json:"doc_id"`
 	Title   string  `json:"title"`
+	Created string  `json:"created"`
 	Score   float64 `json:"score"`
 	Snippet string  `json:"snippet"`
 }
 
 // SearchText embeds query and returns the top-k most similar documents.
-func (idx *Indexer) SearchText(ctx context.Context, baseURL, embedModel, apiKey, query string, k int) ([]SearchResult, error) {
+// sortBy: "relevance" (default) sorts by cosine similarity; "date" re-sorts by Created descending.
+func (idx *Indexer) SearchText(ctx context.Context, baseURL, embedModel, apiKey, query string, k int, sortBy string) ([]SearchResult, error) {
 	oc := openai.New(baseURL, "", apiKey)
 	emb, err := oc.Embed(embedModel, query)
 	if err != nil {
@@ -275,8 +278,24 @@ func (idx *Indexer) SearchText(ctx context.Context, baseURL, embedModel, apiKey,
 		results = append(results, SearchResult{
 			DocID:   id,
 			Title:   h.Metadata["title"],
+			Created: h.Metadata["created"],
 			Score:   float64(h.Similarity),
 			Snippet: snippet,
+		})
+	}
+	if sortBy == "date" {
+		sort.SliceStable(results, func(i, j int) bool {
+			ci, cj := results[i].Created, results[j].Created
+			if ci == "" && cj == "" {
+				return false
+			}
+			if ci == "" {
+				return false // empty dates go to the end
+			}
+			if cj == "" {
+				return true
+			}
+			return ci > cj // lexicographic descending works for ISO dates
 		})
 	}
 	return results, nil
