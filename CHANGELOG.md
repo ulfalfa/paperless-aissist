@@ -1,3 +1,10 @@
+# [0.24.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.23.0...v0.24.0) (2026-05-24)
+
+
+### Features
+
+* add upload_document tool to MCP, RAG chat, and dispatcher ([4229677](https://gitlab.com/ulfalfa/paperless-aissist/commit/422967724532799c4346aaa110f8b266ec7f75b8))
+
 # [0.23.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.22.1...v0.23.0) (2026-05-24)
 
 
