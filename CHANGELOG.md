@@ -1,3 +1,10 @@
+# [0.26.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.25.0...v0.26.0) (2026-05-24)
+
+
+### Features
+
+* add sort_by and increase default max_docs in search_documents_semantic ([6a84e2f](https://gitlab.com/ulfalfa/paperless-aissist/commit/6a84e2ff6724a4c2d0f1fa4b60c54925842aa26e))
+
 # [0.25.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.24.0...v0.25.0) (2026-05-24)
 
 
