@@ -22,7 +22,7 @@
     <article>
       <header>Config A <small style="font-weight:400; color:var(--pico-muted-color);">(current settings — not editable)</small></header>
       <p style="font-family:monospace; font-size:0.85rem; margin-bottom:0.5rem;">
-        <strong>{{$cfg.OllamaModel}}</strong>{{if gt $cfg.Temperature 0.0}} &middot; temp={{$cfg.Temperature}}{{end}}{{if gt $cfg.TopK 0}} &middot; top_k={{$cfg.TopK}}{{end}}{{if gt $cfg.TopP 0.0}} &middot; top_p={{$cfg.TopP}}{{end}}{{if gt $cfg.RepeatPenalty 0.0}} &middot; rep={{$cfg.RepeatPenalty}}{{end}}{{if gt $cfg.NumCtx 0}} &middot; ctx={{$cfg.NumCtx}}{{end}}{{if $cfg.Think}} &middot; think=on{{end}}
+        <strong>{{$cfg.OpenAIModel}}</strong>{{if gt $cfg.Temperature 0.0}} &middot; temp={{$cfg.Temperature}}{{end}}{{if gt $cfg.TopK 0}} &middot; top_k={{$cfg.TopK}}{{end}}{{if gt $cfg.TopP 0.0}} &middot; top_p={{$cfg.TopP}}{{end}}{{if gt $cfg.RepeatPenalty 0.0}} &middot; rep={{$cfg.RepeatPenalty}}{{end}}{{if gt $cfg.NumCtx 0}} &middot; ctx={{$cfg.NumCtx}}{{end}}{{if $cfg.Think}} &middot; think=on{{end}}
       </p>
       <p style="font-size:0.82rem; color:var(--pico-muted-color); margin:0;">
         Change these values in <a href="/settings">Settings</a>.
@@ -34,7 +34,7 @@
       <header>Config B <small style="font-weight:400; color:var(--pico-muted-color);">(your variant)</small></header>
       <label>Model
         <select name="b_model">
-          <option value="">{{$cfg.OllamaModel}} (default)</option>
+          <option value="">{{$cfg.OpenAIModel}} (default)</option>
           {{range $models}}<option value="{{.}}">{{.}}</option>{{end}}
         </select>
       </label>

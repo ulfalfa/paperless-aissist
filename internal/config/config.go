@@ -27,8 +27,8 @@ func Load() (*types.AppConfig, error) {
 	numCtx, _ := strconv.Atoi(getEnv("NUM_CTX", "0"))
 
 	return &types.AppConfig{
-		OllamaHost:     getEnv("OLLAMA_HOST", "http://localhost:11434"),
-		OllamaModel:    getEnv("OLLAMA_MODEL", "gemma4:latest"),
+		OpenAIBaseURL:  getEnv("OPENAI_BASE_URL", "http://localhost:11434"),
+		OpenAIModel:    getEnv("OPENAI_MODEL", "gemma4:latest"),
 		PromptFile:     getEnv("PROMPT_FILE", "prompt.md"),
 		PaperlessURL:   getEnv("PAPERLESS_BASE_URL", ""),
 		PaperlessToken: getEnv("PAPERLESS_API_TOKEN", ""),
@@ -47,14 +47,15 @@ func Load() (*types.AppConfig, error) {
 		RepeatPenalty:  repeatPenalty,
 		NumCtx:         numCtx,
 		MCPToken:       getEnv("MCP_API_TOKEN", ""),
+		OpenAIAPIKey:   getEnv("OPENAI_API_KEY", ""),
 	}, nil
 }
 
 // Save writes the config back to the .env file.
 func Save(cfg *types.AppConfig) error {
 	lines := []string{
-		"OLLAMA_HOST=" + cfg.OllamaHost,
-		"OLLAMA_MODEL=" + cfg.OllamaModel,
+		"OPENAI_BASE_URL=" + cfg.OpenAIBaseURL,
+		"OPENAI_MODEL=" + cfg.OpenAIModel,
 		"PROMPT_FILE=" + cfg.PromptFile,
 		"PAPERLESS_BASE_URL=" + cfg.PaperlessURL,
 		"PAPERLESS_API_TOKEN=" + cfg.PaperlessToken,
@@ -73,6 +74,7 @@ func Save(cfg *types.AppConfig) error {
 		fmt.Sprintf("REPEAT_PENALTY=%v", cfg.RepeatPenalty),
 		fmt.Sprintf("NUM_CTX=%d", cfg.NumCtx),
 		"MCP_API_TOKEN=" + cfg.MCPToken,
+		"OPENAI_API_KEY=" + cfg.OpenAIAPIKey,
 	}
 	return os.WriteFile(envFile, []byte(strings.Join(lines, "\n")+"\n"), 0600)
 }

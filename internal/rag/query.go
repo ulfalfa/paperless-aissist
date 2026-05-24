@@ -9,21 +9,21 @@ import (
 	"time"
 
 	"github.com/ulf/paperless-aissist/internal/logger"
-	"github.com/ulf/paperless-aissist/internal/ollama"
+	"github.com/ulf/paperless-aissist/internal/openai"
 	"github.com/ulf/paperless-aissist/internal/paperless"
 	"github.com/ulf/paperless-aissist/internal/promptlog"
 	"github.com/ulf/paperless-aissist/internal/tools"
 	"github.com/ulf/paperless-aissist/internal/types"
 )
 
-// Query uses Ollama /api/chat with tool calling. The LLM can call
+// Query uses /v1/chat/completions with tool calling. The LLM can call
 // search_documents_semantic to perform a vector search, get_document for full
 // content, and other paperless tools. Previously found documents (pinnedDocIDs)
 // are loaded upfront and provided as context so the LLM skips re-searching on
 // follow-up questions.
 func (idx *Indexer) Query(
 	question, paperlessBaseURL string,
-	oc *ollama.Client,
+	oc *openai.Client,
 	embedModel, chatModel string,
 	history []types.ConversationMessage,
 	pc *paperless.Client,
@@ -85,16 +85,16 @@ func (idx *Indexer) Query(
 		"Only call list_tags, list_correspondents, list_document_types, count_documents when the user explicitly asks about those metadata categories. " +
 		"Do not call search_documents_semantic again if pinned documents above already answer the question."
 
-	messages := []ollama.ChatMessage{
+	messages := []openai.ChatMessage{
 		{Role: "system", Content: systemContent},
 	}
 	for _, h := range history {
-		messages = append(messages, ollama.ChatMessage{Role: h.Role, Content: h.Content})
+		messages = append(messages, openai.ChatMessage{Role: h.Role, Content: h.Content})
 	}
-	messages = append(messages, ollama.ChatMessage{Role: "user", Content: question})
+	messages = append(messages, openai.ChatMessage{Role: "user", Content: question})
 
 	// ── 3. Tool-call loop ─────────────────────────────────────────────────────
-	ollamaTools := buildTools()
+	chatTools := buildTools()
 	const maxRounds = 4
 	var answer string
 	start := time.Now()
@@ -105,7 +105,7 @@ func (idx *Indexer) Query(
 		status("Thinking…")
 
 		llmStart := time.Now()
-		msg, rp, err := oc.Chat(chatModel, messages, ollamaTools, think)
+		msg, rp, err := oc.Chat(chatModel, messages, chatTools, think)
 		llmDuration := float64(time.Since(llmStart).Milliseconds())
 		if err != nil {
 			return nil, fmt.Errorf("chat: %w", err)
@@ -121,7 +121,7 @@ func (idx *Indexer) Query(
 		if round == 0 {
 			meta = ragMeta
 		}
-		promptlog.WriteLLM(round, chatModel, messages, ollamaTools, msg, llmDuration, rp.GeneratedTokens, rp.TokensPerSec, meta)
+		promptlog.WriteLLM(round, chatModel, messages, chatTools, msg, llmDuration, rp.GeneratedTokens, rp.TokensPerSec, meta)
 
 		messages = append(messages, *msg)
 
@@ -191,7 +191,7 @@ func (idx *Indexer) Query(
 			perf.ToolCalls++
 			promptlog.WriteTool(round, tc.Function.Name, tc.Function.Arguments, text, errStr, toolDuration)
 
-			messages = append(messages, ollama.ChatMessage{
+			messages = append(messages, openai.ChatMessage{
 				Role:       "tool",
 				Content:    text,
 				ToolCallID: tc.ID,
@@ -218,12 +218,12 @@ func (idx *Indexer) Query(
 }
 
 // buildTools returns the tool definitions for all supported paperless operations.
-func buildTools() []ollama.ChatTool {
+func buildTools() []openai.ChatTool {
 	noParams := json.RawMessage(`{"type":"object","properties":{}}`)
-	return []ollama.ChatTool{
+	return []openai.ChatTool{
 		{
 			Type: "function",
-			Function: ollama.ChatToolFunction{
+			Function: openai.ChatToolFunction{
 				Name: "search_documents_semantic",
 				Description: "Search the document archive using semantic/vector search. " +
 					"Before writing the query, infer what type of document would contain the answer — for example: " +
@@ -244,7 +244,7 @@ func buildTools() []ollama.ChatTool {
 		},
 		{
 			Type: "function",
-			Function: ollama.ChatToolFunction{
+			Function: openai.ChatToolFunction{
 				Name:        "search_documents",
 				Description: "Search paperless-ngx by keyword, exact title, or name. " +
 					"Use this when the user mentions a specific person, company, or organization name, or an exact document title. " +
@@ -261,7 +261,7 @@ func buildTools() []ollama.ChatTool {
 		},
 		{
 			Type: "function",
-			Function: ollama.ChatToolFunction{
+			Function: openai.ChatToolFunction{
 				Name:        "get_document",
 				Description: "Retrieve full details and content of a specific document by its numeric ID. Use this immediately when the user mentions or provides a document ID number.",
 				Parameters: json.RawMessage(`{
@@ -275,7 +275,7 @@ func buildTools() []ollama.ChatTool {
 		},
 		{
 			Type: "function",
-			Function: ollama.ChatToolFunction{
+			Function: openai.ChatToolFunction{
 				Name:        "list_tags",
 				Description: "List all tags in the paperless-ngx archive with their document counts.",
 				Parameters:  noParams,
@@ -283,7 +283,7 @@ func buildTools() []ollama.ChatTool {
 		},
 		{
 			Type: "function",
-			Function: ollama.ChatToolFunction{
+			Function: openai.ChatToolFunction{
 				Name:        "list_correspondents",
 				Description: "List all correspondents (senders/recipients) in the paperless-ngx archive.",
 				Parameters:  noParams,
@@ -291,7 +291,7 @@ func buildTools() []ollama.ChatTool {
 		},
 		{
 			Type: "function",
-			Function: ollama.ChatToolFunction{
+			Function: openai.ChatToolFunction{
 				Name:        "list_document_types",
 				Description: "List all document types in the paperless-ngx archive.",
 				Parameters:  noParams,
@@ -299,7 +299,7 @@ func buildTools() []ollama.ChatTool {
 		},
 		{
 			Type: "function",
-			Function: ollama.ChatToolFunction{
+			Function: openai.ChatToolFunction{
 				Name:        "count_documents",
 				Description: "Return the total number of documents stored in the archive.",
 				Parameters:  noParams,
@@ -307,7 +307,7 @@ func buildTools() []ollama.ChatTool {
 		},
 		{
 			Type: "function",
-			Function: ollama.ChatToolFunction{
+			Function: openai.ChatToolFunction{
 				Name:        "list_documents_by_type",
 				Description: "List all documents with a given document type (e.g. 'Zeugnis', 'Rechnung').",
 				Parameters: json.RawMessage(`{
@@ -321,7 +321,7 @@ func buildTools() []ollama.ChatTool {
 		},
 		{
 			Type: "function",
-			Function: ollama.ChatToolFunction{
+			Function: openai.ChatToolFunction{
 				Name:        "list_documents_by_correspondent",
 				Description: "List all documents from a specific correspondent (sender/recipient).",
 				Parameters: json.RawMessage(`{
@@ -330,6 +330,107 @@ func buildTools() []ollama.ChatTool {
 						"correspondent_name": {"type": "string", "description": "Correspondent name (case-insensitive)"}
 					},
 					"required": ["correspondent_name"]
+				}`),
+			},
+		},
+		{
+			Type: "function",
+			Function: openai.ChatToolFunction{
+				Name: "find_documents",
+				Description: "Find documents using combined filters: text query, correspondent, document type, tags, and date range. " +
+					"Use this when the user asks for documents from a specific sender in a specific time period, or filtered by multiple criteria. " +
+					"Examples: 'Rechnung von Telekom aus 2024' → correspondent_name=Telekom, document_type_name=Rechnung, created_from=2024-01-01, created_to=2024-12-31. " +
+					"'Was kam im März von der Krankenkasse?' → correspondent_name=Krankenkasse, created_from=YYYY-03-01, created_to=YYYY-03-31. " +
+					"Ordering defaults to newest first (-created). Use limit to cap the result size.",
+				Parameters: json.RawMessage(`{
+					"type": "object",
+					"properties": {
+						"query":             {"type": "string",  "description": "Optional freetext search query"},
+						"correspondent_name":{"type": "string",  "description": "Filter by correspondent name (case-insensitive)"},
+						"document_type_name":{"type": "string",  "description": "Filter by document type name (case-insensitive)"},
+						"tag_names":         {"type": "array", "items": {"type": "string"}, "description": "Filter by one or more tag names"},
+						"created_from":      {"type": "string",  "description": "Earliest creation date inclusive (YYYY-MM-DD)"},
+						"created_to":        {"type": "string",  "description": "Latest creation date inclusive (YYYY-MM-DD)"},
+						"ordering":          {"type": "string",  "description": "Sort order, e.g. '-created' (default) or 'created'"},
+						"limit":             {"type": "integer", "description": "Max results to return (default 50)"}
+					},
+					"properties": {}
+				}`),
+			},
+		},
+		{
+			Type: "function",
+			Function: openai.ChatToolFunction{
+				Name:        "list_documents_by_tag",
+				Description: "List all documents with a specific tag. Use when the user asks for documents with a given label or category.",
+				Parameters: json.RawMessage(`{
+					"type": "object",
+					"properties": {
+						"tag_name": {"type": "string", "description": "Tag name (case-insensitive)"}
+					},
+					"required": ["tag_name"]
+				}`),
+			},
+		},
+		{
+			Type: "function",
+			Function: openai.ChatToolFunction{
+				Name: "list_recent_documents",
+				Description: "List the most recently created documents. " +
+					"Use when the user asks 'what came in recently', 'what's new', or 'what was added this month'. " +
+					"Optionally filter by a start date via the 'since' parameter.",
+				Parameters: json.RawMessage(`{
+					"type": "object",
+					"properties": {
+						"limit": {"type": "integer", "description": "Max results (default 10)"},
+						"since": {"type": "string",  "description": "Only include documents created on or after this date (YYYY-MM-DD)"}
+					},
+					"properties": {}
+				}`),
+			},
+		},
+		{
+			Type: "function",
+			Function: openai.ChatToolFunction{
+				Name:        "add_tag_to_document",
+				Description: "Add a tag to a document. Use when the user wants to label or categorize a document. Set create_if_missing=true to create the tag if it doesn't exist yet.",
+				Parameters: json.RawMessage(`{
+					"type": "object",
+					"properties": {
+						"id":               {"type": "integer", "description": "Document ID"},
+						"tag_name":         {"type": "string",  "description": "Tag name to add"},
+						"create_if_missing":{"type": "boolean", "description": "Create the tag if it does not exist (default false)"}
+					},
+					"required": ["id", "tag_name"]
+				}`),
+			},
+		},
+		{
+			Type: "function",
+			Function: openai.ChatToolFunction{
+				Name:        "remove_tag_from_document",
+				Description: "Remove a tag from a document. Idempotent — no error if the tag is not on the document.",
+				Parameters: json.RawMessage(`{
+					"type": "object",
+					"properties": {
+						"id":      {"type": "integer", "description": "Document ID"},
+						"tag_name":{"type": "string",  "description": "Tag name to remove"}
+					},
+					"required": ["id", "tag_name"]
+				}`),
+			},
+		},
+		{
+			Type: "function",
+			Function: openai.ChatToolFunction{
+				Name:        "download_document",
+				Description: "Download the original file of a document as a base64-encoded string. Use when the user wants to inspect the actual PDF content or process the file directly.",
+				Parameters: json.RawMessage(`{
+					"type": "object",
+					"properties": {
+						"id": {"type": "integer", "description": "Document ID"}
+					},
+					"required": ["id"]
 				}`),
 			},
 		},

@@ -1,7 +1,7 @@
 # paperless-aissist
 
 AI-powered metadata extraction for [paperless-ngx](https://docs.paperless-ngx.com/).
-Fetches documents, sends them to [Ollama](https://ollama.com/) for analysis, and writes title, tags, correspondent, document type and creation date back — automatically.
+Fetches documents, sends them to an OpenAI-compatible LLM endpoint (e.g. LiteLLM, vLLM, or Ollama via `/v1/`) for analysis, and writes title, tags, correspondent, document type and creation date back — automatically.
 
 ## Features
 
@@ -28,17 +28,18 @@ The web UI is then available at `http://<your-server>:8080`.
 
 ## Requirements
 
-- [Ollama](https://ollama.com/) running and accessible
-- A text generation model (e.g. `ollama pull gemma3:27b`)
-- An embedding model for RAG chat (e.g. `ollama pull bge-m3`)
+- An OpenAI-compatible LLM endpoint (e.g. [LiteLLM](https://litellm.ai/), [vLLM](https://vllm.ai/), or [Ollama](https://ollama.com/) with `/v1/` API)
+- A text generation model accessible at that endpoint
+- An embedding model for RAG chat
 - A running paperless-ngx instance with API access
 
 ## Configuration
 
 | Variable | Default | Description |
 |---|---|---|
-| `OLLAMA_HOST` | `http://localhost:11434` | Ollama API base URL |
-| `OLLAMA_MODEL` | `gemma4:latest` | Model for metadata extraction |
+| `OPENAI_BASE_URL` | `http://localhost:11434` | OpenAI-compatible API base URL |
+| `OPENAI_MODEL` | `gemma4:latest` | Model for metadata extraction |
+| `OPENAI_API_KEY` | — | Bearer token / API key (optional) |
 | `PAPERLESS_BASE_URL` | — | Base URL of your paperless-ngx instance |
 | `PAPERLESS_API_TOKEN` | — | API token (paperless-ngx → Settings → API tokens) |
 | `PORT` | `8080` | HTTP server port |

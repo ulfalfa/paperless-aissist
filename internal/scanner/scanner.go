@@ -8,7 +8,7 @@ import (
 
 	"github.com/ulf/paperless-aissist/internal/config"
 	"github.com/ulf/paperless-aissist/internal/logger"
-	"github.com/ulf/paperless-aissist/internal/ollama"
+	"github.com/ulf/paperless-aissist/internal/openai"
 	"github.com/ulf/paperless-aissist/internal/paperless"
 	"github.com/ulf/paperless-aissist/internal/rag"
 	"github.com/ulf/paperless-aissist/internal/types"
@@ -131,7 +131,7 @@ func RunOnce() {
 	}
 
 	pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
-	oc := ollama.New(cfg.OllamaHost, cfg.OllamaModel)
+	oc := openai.New(cfg.OpenAIBaseURL, cfg.OpenAIModel, cfg.OpenAIAPIKey)
 
 	// Find tag ID for SCAN_TAG
 	tags, err := pc.ListTags()
@@ -189,7 +189,7 @@ func RunOnce() {
 	var errs []string
 	count := 0
 	for _, doc := range docs {
-		prompt := ollama.BuildPrompt(promptTemplate, doc.Content, hints)
+		prompt := openai.BuildPrompt(promptTemplate, doc.Content, hints)
 		result, _, err := oc.Analyze(prompt, types.ModelOptions{})
 		if err != nil {
 			msg := fmt.Sprintf("doc %d: %s", doc.ID, err.Error())

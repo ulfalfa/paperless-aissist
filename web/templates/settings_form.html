@@ -4,15 +4,16 @@
 {{$cfg := .Config}}
 <form id="settings-form" hx-post="/ui/settings" hx-target="#settings-form" hx-swap="outerHTML">
   <article>
-    <header>Ollama</header>
+    <header>OpenAI</header>
     <div class="grid">
-      <label>Host<input type="text" name="ollamaHost" value="{{$cfg.OllamaHost}}"></label>
+      <label>Base URL<input type="text" name="openaiBaseUrl" value="{{$cfg.OpenAIBaseURL}}"></label>
       <label>Model
-        <select name="ollamaModel">
-          {{range .Models}}<option value="{{.}}" {{if eq . $cfg.OllamaModel}}selected{{end}}>{{.}}</option>{{end}}
+        <select name="openaiModel">
+          {{range .Models}}<option value="{{.}}" {{if eq . $cfg.OpenAIModel}}selected{{end}}>{{.}}</option>{{end}}
         </select>
       </label>
     </div>
+    <label>API Key <small style="font-weight:normal">(optional, LiteLLM / OpenAI-compatible server)</small><input type="password" name="openaiApiKey" value="{{$cfg.OpenAIAPIKey}}" placeholder="sk-…"></label>
   </article>
   <article>
     <header>paperless-ngx</header>

@@ -22,7 +22,7 @@ import (
 	"github.com/ulf/paperless-aissist/internal/logger"
 	"github.com/ulf/paperless-aissist/internal/mcp"
 	"github.com/ulf/paperless-aissist/internal/promptlog"
-	"github.com/ulf/paperless-aissist/internal/ollama"
+	"github.com/ulf/paperless-aissist/internal/openai"
 	"github.com/ulf/paperless-aissist/internal/paperless"
 	"github.com/ulf/paperless-aissist/internal/rag"
 	"github.com/ulf/paperless-aissist/internal/scanner"
@@ -339,7 +339,7 @@ func handlePostPrompt(w http.ResponseWriter, r *http.Request) {
 type analyzeResponse struct {
 	Document       *types.PaperlessDocument `json:"document"`
 	Analysis       *types.AnalysisResult    `json:"analysis"`
-	Perf           *types.OllamaPerf        `json:"perf"`
+	Perf           *types.OpenAIPerf        `json:"perf"`
 	Tags           []types.PaperlessItem    `json:"tags"`
 	Correspondents []types.PaperlessItem    `json:"correspondents"`
 	DocumentTypes  []types.PaperlessItem    `json:"documentTypes"`
@@ -385,13 +385,13 @@ func analyzeDocument(id int, override *types.ModelOptions) (*analyzeResponse, er
 		opts.UnloadAfter = override.UnloadAfter
 	}
 
-	effectiveModel := cfg.OllamaModel
+	effectiveModel := cfg.OpenAIModel
 	if opts.Model != "" {
 		effectiveModel = opts.Model
 	}
 
 	pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
-	oc := ollama.New(cfg.OllamaHost, cfg.OllamaModel)
+	oc := openai.New(cfg.OpenAIBaseURL, cfg.OpenAIModel, cfg.OpenAIAPIKey)
 
 	doc, err := pc.GetDocument(id)
 	if err != nil {
@@ -410,10 +410,10 @@ func analyzeDocument(id int, override *types.ModelOptions) (*analyzeResponse, er
 		Correspondents: namesOf(correspondents),
 		DocumentTypes:  namesOf(docTypes),
 	}
-	prompt := ollama.BuildPrompt(promptTemplate, doc.Content, hints)
+	prompt := openai.BuildPrompt(promptTemplate, doc.Content, hints)
 	result, perf, err := oc.Analyze(prompt, opts)
 	if err != nil {
-		return nil, fmt.Errorf("ollama: %w", err)
+		return nil, fmt.Errorf("openai: %w", err)
 	}
 	result = validate.Apply(result, cfg.AITag)
 	logger.Info(fmt.Sprintf("Analyzed doc %d: %s (%.1fs, %.0f tok/s)",
@@ -692,7 +692,7 @@ type promptEntryView struct {
 	// UI
 	Question     string // last user message (for summary display)
 	HistoryCount int    // number of prior turns (messages minus system + latest user)
-	RawRequest   string // full JSON payload sent to Ollama
+	RawRequest   string // full JSON payload sent to the LLM
 	IsLast       bool
 }
 
@@ -838,7 +838,7 @@ func promptPageData() promptsData {
 				entry.HistoryCount = len(msgViews) - 2
 			}
 
-			// Build raw JSON request payload as sent to Ollama
+			// Build raw JSON request payload as sent to the LLM
 			rawPayload, _ := json.MarshalIndent(map[string]any{
 				"model":    e.Model,
 				"messages": e.Messages,
@@ -941,8 +941,8 @@ func handleScanPage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func fetchModels(host string, current ...string) []string {
-	oc := ollama.New(host, "")
+func fetchModels(host, apiKey string, current ...string) []string {
+	oc := openai.New(host, "", apiKey)
 	models, _ := oc.ListModels()
 	for _, cur := range current {
 		if cur == "" {
@@ -970,7 +970,7 @@ func handleSettingsPage(w http.ResponseWriter, r *http.Request) {
 		Data: map[string]any{
 			"Config": cfg,
 			"Prompt": promptContent,
-			"Models": fetchModels(cfg.OllamaHost, cfg.OllamaModel, cfg.EmbedModel),
+			"Models": fetchModels(cfg.OpenAIBaseURL, cfg.OpenAIAPIKey, cfg.OpenAIModel, cfg.EmbedModel),
 		},
 	})
 }
@@ -1131,8 +1131,8 @@ func handleSettingsForm(w http.ResponseWriter, r *http.Request) {
 	repeatPenalty, _ := strconv.ParseFloat(r.FormValue("repeatPenalty"), 64)
 	numCtx, _ := strconv.Atoi(r.FormValue("numCtx"))
 	cfg := &types.AppConfig{
-		OllamaHost:     r.FormValue("ollamaHost"),
-		OllamaModel:    r.FormValue("ollamaModel"),
+		OpenAIBaseURL:  r.FormValue("openaiBaseUrl"),
+		OpenAIModel:    r.FormValue("openaiModel"),
 		PromptFile:     r.FormValue("promptFile"),
 		PaperlessURL:   r.FormValue("paperlessBaseUrl"),
 		PaperlessToken: r.FormValue("paperlessApiToken"),
@@ -1150,9 +1150,10 @@ func handleSettingsForm(w http.ResponseWriter, r *http.Request) {
 		RepeatPenalty:  repeatPenalty,
 		NumCtx:         numCtx,
 		MCPToken:       r.FormValue("mcpToken"),
+		OpenAIAPIKey:   r.FormValue("openaiApiKey"),
 	}
 	prompt, _ := config.LoadPrompt(cfg.PromptFile)
-	models := fetchModels(cfg.OllamaHost, cfg.OllamaModel, cfg.EmbedModel)
+	models := fetchModels(cfg.OpenAIBaseURL, cfg.OpenAIAPIKey, cfg.OpenAIModel, cfg.EmbedModel)
 	if err := config.Save(cfg); err != nil {
 		renderPartial(w, "settings_form.html", map[string]any{"Config": cfg, "Models": models, "Prompt": prompt, "Error": err.Error()})
 		return
@@ -1177,14 +1178,14 @@ func handlePromptForm(w http.ResponseWriter, r *http.Request) {
 
 func handleChatPage(w http.ResponseWriter, r *http.Request) {
 	cfg, _ := config.Load()
-	oc := ollama.New(cfg.OllamaHost, cfg.OllamaModel)
+	oc := openai.New(cfg.OpenAIBaseURL, cfg.OpenAIModel, cfg.OpenAIAPIKey)
 	models, _ := oc.ListModels()
 	render(w, "chat.html", pageData{
 		ActivePage: "chat",
 		Data: map[string]any{
 			"IndexStatus":  rag.Global().GetStatus(),
 			"Models":       models,
-			"DefaultModel": cfg.OllamaModel,
+			"DefaultModel": cfg.OpenAIModel,
 			"ThinkDefault": cfg.Think,
 		},
 	})
@@ -1228,7 +1229,7 @@ func handleChatForm(w http.ResponseWriter, r *http.Request) {
 
 	cfg, _ := config.Load()
 	go func() {
-		oc := ollama.New(cfg.OllamaHost, cfg.OllamaModel)
+		oc := openai.New(cfg.OpenAIBaseURL, cfg.OpenAIModel, cfg.OpenAIAPIKey)
 		pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
 		logger.Info(fmt.Sprintf("RAG query [%s]: %s", chatModel, question))
 
@@ -1351,7 +1352,7 @@ func handleIndexStatus(w http.ResponseWriter, r *http.Request) {
 
 func handleTestPage(w http.ResponseWriter, r *http.Request) {
 	cfg, _ := config.Load()
-	oc := ollama.New(cfg.OllamaHost, cfg.OllamaModel)
+	oc := openai.New(cfg.OpenAIBaseURL, cfg.OpenAIModel, cfg.OpenAIAPIKey)
 	models, _ := oc.ListModels()
 	render(w, "test.html", pageData{
 		ActivePage: "test",
@@ -1415,7 +1416,7 @@ func handleTestCompare(w http.ResponseWriter, r *http.Request) {
 	// Load current config opts for Side A display
 	cfg, _ := config.Load()
 	optsA := types.ModelOptions{
-		Model:         cfg.OllamaModel,
+		Model:         cfg.OpenAIModel,
 		Temperature:   cfg.Temperature,
 		TopK:          cfg.TopK,
 		TopP:          cfg.TopP,
@@ -1490,7 +1491,7 @@ func handleApplyVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if model != "" {
-		cfg.OllamaModel = model
+		cfg.OpenAIModel = model
 	}
 	cfg.Temperature = temperature
 	cfg.TopK = topK

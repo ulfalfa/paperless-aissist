@@ -12,7 +12,7 @@ import (
 	"github.com/ulf/paperless-aissist/internal/auth"
 	"github.com/ulf/paperless-aissist/internal/config"
 	"github.com/ulf/paperless-aissist/internal/logger"
-	"github.com/ulf/paperless-aissist/internal/ollama"
+	"github.com/ulf/paperless-aissist/internal/openai"
 	"github.com/ulf/paperless-aissist/internal/paperless"
 	pdf "github.com/ulf/paperless-aissist/internal/pdf"
 	"github.com/ulf/paperless-aissist/internal/promptlog"
@@ -172,12 +172,12 @@ func runDocument(id int, dryRun bool) {
 }
 
 func analyze(cfg *types.AppConfig, text string) (*types.AnalysisResult, error) {
-	oc := ollama.New(cfg.OllamaHost, cfg.OllamaModel)
+	oc := openai.New(cfg.OpenAIBaseURL, cfg.OpenAIModel, cfg.OpenAIAPIKey)
 	promptTemplate, err := config.LoadPrompt(cfg.PromptFile)
 	if err != nil {
 		return nil, err
 	}
-	prompt := ollama.BuildPrompt(promptTemplate, text, types.Hints{})
+	prompt := openai.BuildPrompt(promptTemplate, text, types.Hints{})
 	result, _, err := oc.Analyze(prompt, types.ModelOptions{})
 	if err != nil {
 		return nil, err
@@ -186,7 +186,7 @@ func analyze(cfg *types.AppConfig, text string) (*types.AnalysisResult, error) {
 }
 
 func analyzeWithHints(cfg *types.AppConfig, pc *paperless.Client, doc *types.PaperlessDocument) (*types.AnalysisResult, error) {
-	oc := ollama.New(cfg.OllamaHost, cfg.OllamaModel)
+	oc := openai.New(cfg.OpenAIBaseURL, cfg.OpenAIModel, cfg.OpenAIAPIKey)
 	promptTemplate, err := config.LoadPrompt(cfg.PromptFile)
 	if err != nil {
 		return nil, err
@@ -199,7 +199,7 @@ func analyzeWithHints(cfg *types.AppConfig, pc *paperless.Client, doc *types.Pap
 		Correspondents: namesOf(correspondents),
 		DocumentTypes:  namesOf(docTypes),
 	}
-	prompt := ollama.BuildPrompt(promptTemplate, doc.Content, hints)
+	prompt := openai.BuildPrompt(promptTemplate, doc.Content, hints)
 	result, _, err := oc.Analyze(prompt, types.ModelOptions{})
 	if err != nil {
 		return nil, err

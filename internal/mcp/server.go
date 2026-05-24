@@ -9,7 +9,7 @@ import (
 	mcpsdk "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/ulf/paperless-aissist/internal/config"
-	"github.com/ulf/paperless-aissist/internal/ollama"
+	"github.com/ulf/paperless-aissist/internal/openai"
 	"github.com/ulf/paperless-aissist/internal/paperless"
 	"github.com/ulf/paperless-aissist/internal/rag"
 	"github.com/ulf/paperless-aissist/internal/tools"
@@ -33,35 +33,35 @@ func NewHTTPHandler() http.Handler {
 
 	// list_tags
 	s.AddTool(mcpsdk.NewTool("list_tags",
-		mcpsdk.WithDescription("List all tags in paperless-ngx"),
+		mcpsdk.WithDescription("List all tags in the paperless-ngx archive with their document counts."),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		return runTool("list_tags", nil)
 	})
 
 	// list_correspondents
 	s.AddTool(mcpsdk.NewTool("list_correspondents",
-		mcpsdk.WithDescription("List all correspondents in paperless-ngx"),
+		mcpsdk.WithDescription("List all correspondents (senders/recipients) in the paperless-ngx archive."),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		return runTool("list_correspondents", nil)
 	})
 
 	// list_document_types
 	s.AddTool(mcpsdk.NewTool("list_document_types",
-		mcpsdk.WithDescription("List all document types in paperless-ngx"),
+		mcpsdk.WithDescription("List all document types in the paperless-ngx archive."),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		return runTool("list_document_types", nil)
 	})
 
 	// count_documents
 	s.AddTool(mcpsdk.NewTool("count_documents",
-		mcpsdk.WithDescription("Return the total number of documents in the archive"),
+		mcpsdk.WithDescription("Return the total number of documents stored in the archive."),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		return runTool("count_documents", nil)
 	})
 
 	// get_document
 	s.AddTool(mcpsdk.NewTool("get_document",
-		mcpsdk.WithDescription("Get a document by ID from paperless-ngx"),
+		mcpsdk.WithDescription("Retrieve full details and content of a specific document by its numeric ID. Use this immediately when a document ID is known."),
 		mcpsdk.WithNumber("id", mcpsdk.Required(), mcpsdk.Description("Document ID")),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		args := req.GetArguments()
@@ -71,7 +71,7 @@ func NewHTTPHandler() http.Handler {
 
 	// search_documents
 	s.AddTool(mcpsdk.NewTool("search_documents",
-		mcpsdk.WithDescription("Search for documents in paperless-ngx"),
+		mcpsdk.WithDescription("Search paperless-ngx by keyword, exact title, or person/company name. Use for exact name lookups or when the user mentions a specific organization."),
 		mcpsdk.WithString("query", mcpsdk.Required(), mcpsdk.Description("Search query")),
 		mcpsdk.WithNumber("page_size", mcpsdk.Description("Max results (default 10)")),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
@@ -82,7 +82,7 @@ func NewHTTPHandler() http.Handler {
 
 	// list_documents_by_type
 	s.AddTool(mcpsdk.NewTool("list_documents_by_type",
-		mcpsdk.WithDescription("List all documents with a given document type (e.g. 'Zeugnis', 'Rechnung')"),
+		mcpsdk.WithDescription("List all documents with a given document type (e.g. 'Zeugnis', 'Rechnung', 'Kontoauszug')."),
 		mcpsdk.WithString("type_name", mcpsdk.Required(), mcpsdk.Description("Document type name (case-insensitive)")),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		args := req.GetArguments()
@@ -92,7 +92,7 @@ func NewHTTPHandler() http.Handler {
 
 	// list_documents_by_correspondent
 	s.AddTool(mcpsdk.NewTool("list_documents_by_correspondent",
-		mcpsdk.WithDescription("List all documents from a specific correspondent"),
+		mcpsdk.WithDescription("List all documents from a specific correspondent (sender/recipient). Case-insensitive name match."),
 		mcpsdk.WithString("correspondent_name", mcpsdk.Required(), mcpsdk.Description("Correspondent name (case-insensitive)")),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		args := req.GetArguments()
@@ -100,9 +100,105 @@ func NewHTTPHandler() http.Handler {
 		return runTool("list_documents_by_correspondent", b)
 	})
 
+	// list_documents_by_tag
+	s.AddTool(mcpsdk.NewTool("list_documents_by_tag",
+		mcpsdk.WithDescription("List all documents with a specific tag. Use when the user asks for documents with a given label or category."),
+		mcpsdk.WithString("tag_name", mcpsdk.Required(), mcpsdk.Description("Tag name (case-insensitive)")),
+	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		args := req.GetArguments()
+		b, _ := json.Marshal(map[string]any{"tag_name": args["tag_name"]})
+		return runTool("list_documents_by_tag", b)
+	})
+
+	// find_documents
+	s.AddTool(mcpsdk.NewTool("find_documents",
+		mcpsdk.WithDescription("Find documents using combined filters: correspondent, document type, tags, date range, and optional freetext query. "+
+			"Use when multiple criteria apply — e.g. 'Rechnung von Telekom aus 2024' or 'Dokumente vom Finanzamt im Q1 2025'. "+
+			"All parameters are optional; omit those not needed. Results are sorted newest-first by default."),
+		mcpsdk.WithString("query", mcpsdk.Description("Optional freetext search")),
+		mcpsdk.WithString("correspondent_name", mcpsdk.Description("Filter by correspondent name (case-insensitive)")),
+		mcpsdk.WithString("document_type_name", mcpsdk.Description("Filter by document type (case-insensitive)")),
+		mcpsdk.WithString("created_from", mcpsdk.Description("Earliest creation date inclusive (YYYY-MM-DD)")),
+		mcpsdk.WithString("created_to", mcpsdk.Description("Latest creation date inclusive (YYYY-MM-DD)")),
+		mcpsdk.WithString("ordering", mcpsdk.Description("Sort order: '-created' newest first (default), 'created' oldest first")),
+		mcpsdk.WithNumber("limit", mcpsdk.Description("Max results (default 50)")),
+	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		args := req.GetArguments()
+		b, _ := json.Marshal(map[string]any{
+			"query":             args["query"],
+			"correspondent_name": args["correspondent_name"],
+			"document_type_name": args["document_type_name"],
+			"created_from":      args["created_from"],
+			"created_to":        args["created_to"],
+			"ordering":          args["ordering"],
+			"limit":             args["limit"],
+		})
+		return runTool("find_documents", b)
+	})
+
+	// list_recent_documents
+	s.AddTool(mcpsdk.NewTool("list_recent_documents",
+		mcpsdk.WithDescription("List the most recently created documents. Use for 'what came in recently', 'what's new', or 'show me the last N documents'."),
+		mcpsdk.WithNumber("limit", mcpsdk.Description("Max results (default 10)")),
+		mcpsdk.WithString("since", mcpsdk.Description("Only include documents created on or after this date (YYYY-MM-DD)")),
+	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		args := req.GetArguments()
+		b, _ := json.Marshal(map[string]any{"limit": args["limit"], "since": args["since"]})
+		return runTool("list_recent_documents", b)
+	})
+
+	// add_tag_to_document
+	s.AddTool(mcpsdk.NewTool("add_tag_to_document",
+		mcpsdk.WithDescription("Add a tag to a document. Set create_if_missing=true to create the tag if it doesn't exist yet."),
+		mcpsdk.WithNumber("id", mcpsdk.Required(), mcpsdk.Description("Document ID")),
+		mcpsdk.WithString("tag_name", mcpsdk.Required(), mcpsdk.Description("Tag name to add")),
+		mcpsdk.WithBoolean("create_if_missing", mcpsdk.Description("Create the tag if it does not exist (default false)")),
+	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		args := req.GetArguments()
+		b, _ := json.Marshal(map[string]any{
+			"id":                args["id"],
+			"tag_name":          args["tag_name"],
+			"create_if_missing": args["create_if_missing"],
+		})
+		cfg, _ := config.Load()
+		pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
+		tr, err := tools.Execute("add_tag_to_document", b, pc, cfg.PaperlessURL)
+		if err != nil {
+			return mcpsdk.NewToolResultError(err.Error()), nil
+		}
+		return mcpsdk.NewToolResultText(tr.Text), nil
+	})
+
+	// remove_tag_from_document
+	s.AddTool(mcpsdk.NewTool("remove_tag_from_document",
+		mcpsdk.WithDescription("Remove a tag from a document. Idempotent — no error if the tag is not present on the document."),
+		mcpsdk.WithNumber("id", mcpsdk.Required(), mcpsdk.Description("Document ID")),
+		mcpsdk.WithString("tag_name", mcpsdk.Required(), mcpsdk.Description("Tag name to remove")),
+	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		args := req.GetArguments()
+		b, _ := json.Marshal(map[string]any{"id": args["id"], "tag_name": args["tag_name"]})
+		cfg, _ := config.Load()
+		pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
+		tr, err := tools.Execute("remove_tag_from_document", b, pc, cfg.PaperlessURL)
+		if err != nil {
+			return mcpsdk.NewToolResultError(err.Error()), nil
+		}
+		return mcpsdk.NewToolResultText(tr.Text), nil
+	})
+
+	// download_document
+	s.AddTool(mcpsdk.NewTool("download_document",
+		mcpsdk.WithDescription("Download the original file of a document as a base64-encoded string. Returns base64 content and content_type (usually application/pdf)."),
+		mcpsdk.WithNumber("id", mcpsdk.Required(), mcpsdk.Description("Document ID")),
+	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		args := req.GetArguments()
+		b, _ := json.Marshal(map[string]any{"id": args["id"]})
+		return runTool("download_document", b)
+	})
+
 	// analyze_document
 	s.AddTool(mcpsdk.NewTool("analyze_document",
-		mcpsdk.WithDescription("Analyze a document with Ollama and optionally save results"),
+		mcpsdk.WithDescription("Analyze a document with the LLM and optionally save results"),
 		mcpsdk.WithNumber("id", mcpsdk.Required(), mcpsdk.Description("Document ID")),
 		mcpsdk.WithBoolean("save", mcpsdk.Description("Save results to paperless-ngx (default false)")),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
@@ -114,7 +210,7 @@ func NewHTTPHandler() http.Handler {
 		}
 		cfg, _ := config.Load()
 		pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
-		oc := ollama.New(cfg.OllamaHost, cfg.OllamaModel)
+		oc := openai.New(cfg.OpenAIBaseURL, cfg.OpenAIModel, cfg.OpenAIAPIKey)
 
 		doc, err := pc.GetDocument(id)
 		if err != nil {
@@ -132,7 +228,7 @@ func NewHTTPHandler() http.Handler {
 			Correspondents: namesOf(correspondents),
 			DocumentTypes:  namesOf(docTypes),
 		}
-		prompt := ollama.BuildPrompt(promptTemplate, doc.Content, hints)
+		prompt := openai.BuildPrompt(promptTemplate, doc.Content, hints)
 		result, _, err := oc.Analyze(prompt, types.ModelOptions{})
 		if err != nil {
 			return mcpsdk.NewToolResultError(err.Error()), nil
@@ -200,16 +296,21 @@ func NewHTTPHandler() http.Handler {
 		return mcpsdk.NewToolResultText(fmt.Sprintf("Document %d updated successfully", id)), nil
 	})
 
-	// rag_search
-	s.AddTool(mcpsdk.NewTool("rag_search",
-		mcpsdk.WithDescription("Search documents using semantic vector search (RAG / embeddings)"),
-		mcpsdk.WithString("query", mcpsdk.Required(), mcpsdk.Description("Natural language query")),
-		mcpsdk.WithNumber("max_results", mcpsdk.Description("Max results (default 5)")),
+	// search_documents_semantic
+	s.AddTool(mcpsdk.NewTool("search_documents_semantic",
+		mcpsdk.WithDescription("Search the document archive using semantic/vector search (embeddings). "+
+			"Before writing the query, infer what type of document would contain the answer — for example: "+
+			"a question about a bank transfer implies 'Kontoauszug', taxes imply 'Steuerbescheid', "+
+			"insurance implies 'Police' or 'Rechnung', employment implies 'Arbeitsvertrag' or 'Zeugnis'. "+
+			"Include the inferred document type AND any person/company names in the query string. "+
+			"Example: for 'Wann habe ich an Müller überwiesen?' use query 'Überweisung Müller Kontoauszug'."),
+		mcpsdk.WithString("query", mcpsdk.Required(), mcpsdk.Description("Descriptive semantic search query")),
+		mcpsdk.WithNumber("max_docs", mcpsdk.Description("Max results (default 5)")),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		args := req.GetArguments()
 		query, _ := args["query"].(string)
 		k := 5
-		if n, ok := args["max_results"].(float64); ok && n > 0 {
+		if n, ok := args["max_docs"].(float64); ok && n > 0 {
 			k = int(n)
 		}
 		idx := rag.Global()
@@ -217,7 +318,7 @@ func NewHTTPHandler() http.Handler {
 			return mcpsdk.NewToolResultError("RAG index not initialized"), nil
 		}
 		cfg, _ := config.Load()
-		results, err := idx.SearchText(ctx, cfg.OllamaHost, cfg.EmbedModel, query, k)
+		results, err := idx.SearchText(ctx, cfg.OpenAIBaseURL, cfg.EmbedModel, cfg.OpenAIAPIKey, query, k)
 		if err != nil {
 			return mcpsdk.NewToolResultError(err.Error()), nil
 		}

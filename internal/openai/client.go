@@ -1,4 +1,4 @@
-package ollama
+package openai
 
 import (
 	"bytes"
@@ -14,17 +14,42 @@ import (
 
 // Client sends prompts to an OpenAI-compatible API (e.g. LiteLLM).
 type Client struct {
-	host  string
-	model string
-	http  *http.Client
+	host   string
+	model  string
+	apiKey string
+	http   *http.Client
 }
 
-func New(host, model string) *Client {
+func New(host, model, apiKey string) *Client {
 	return &Client{
-		host:  strings.TrimRight(host, "/"),
-		model: model,
-		http:  &http.Client{},
+		host:   strings.TrimRight(host, "/"),
+		model:  model,
+		apiKey: apiKey,
+		http:   &http.Client{},
 	}
+}
+
+func (c *Client) newRequest(method, url string, body []byte) (*http.Request, error) {
+	req, err := http.NewRequest(method, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
+	return req, nil
+}
+
+func (c *Client) newGetRequest(url string) (*http.Request, error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	if c.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
+	return req, nil
 }
 
 // ContextSize returns 0; OpenAI-compatible backends have no standard endpoint for this.
@@ -92,8 +117,12 @@ func (c *Client) postChat(req oaiChatRequest) (*oaiChatResponse, time.Duration, 
 	if err != nil {
 		return nil, 0, err
 	}
+	httpReq, err := c.newRequest(http.MethodPost, c.host+"/v1/chat/completions", data)
+	if err != nil {
+		return nil, 0, err
+	}
 	start := time.Now()
-	resp, err := c.http.Post(c.host+"/v1/chat/completions", "application/json", bytes.NewReader(data))
+	resp, err := c.http.Do(httpReq)
 	elapsed := time.Since(start)
 	if err != nil {
 		return nil, 0, err
@@ -115,7 +144,7 @@ func (c *Client) postChat(req oaiChatRequest) (*oaiChatResponse, time.Duration, 
 
 // ─── generate (document analysis with JSON output) ────────────────────────────
 
-func (c *Client) Analyze(prompt string, opts types.ModelOptions) (*types.AnalysisResult, *types.OllamaPerf, error) {
+func (c *Client) Analyze(prompt string, opts types.ModelOptions) (*types.AnalysisResult, *types.OpenAIPerf, error) {
 	result, perf, err := c.generate(prompt, opts)
 	if err != nil {
 		result, perf, err = c.generate(prompt, opts)
@@ -126,7 +155,7 @@ func (c *Client) Analyze(prompt string, opts types.ModelOptions) (*types.Analysi
 	return result, perf, nil
 }
 
-func (c *Client) generate(prompt string, opts types.ModelOptions) (*types.AnalysisResult, *types.OllamaPerf, error) {
+func (c *Client) generate(prompt string, opts types.ModelOptions) (*types.AnalysisResult, *types.OpenAIPerf, error) {
 	model := c.model
 	if opts.Model != "" {
 		model = opts.Model
@@ -159,7 +188,7 @@ func (c *Client) generate(prompt string, opts types.ModelOptions) (*types.Analys
 		return nil, nil, fmt.Errorf("parse response: %w (raw: %s)", err, content)
 	}
 	secs := elapsed.Seconds()
-	perf := &types.OllamaPerf{
+	perf := &types.OpenAIPerf{
 		TotalDurationMs: float64(elapsed.Milliseconds()),
 		PromptTokens:    cr.Usage.PromptTokens,
 		GeneratedTokens: cr.Usage.CompletionTokens,
@@ -203,7 +232,11 @@ type oaiEmbedResponse struct {
 func (c *Client) Embed(model, text string) ([]float32, error) {
 	req := oaiEmbedRequest{Model: model, Input: []string{text}}
 	data, _ := json.Marshal(req)
-	resp, err := c.http.Post(c.host+"/v1/embeddings", "application/json", bytes.NewReader(data))
+	httpReq, err := c.newRequest(http.MethodPost, c.host+"/v1/embeddings", data)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.http.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +265,11 @@ type oaiModelsResponse struct {
 
 // ListModels returns the names of all models available via /v1/models.
 func (c *Client) ListModels() ([]string, error) {
-	resp, err := c.http.Get(c.host + "/v1/models")
+	httpReq, err := c.newGetRequest(c.host + "/v1/models")
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.http.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}

@@ -26,7 +26,7 @@ type Hints struct {
 	DocumentTypes  []string
 }
 
-// AnalysisResult is the structured output from Ollama
+// AnalysisResult is the structured output from the LLM
 type AnalysisResult struct {
 	Title         string   `json:"title"`
 	Tags          []string `json:"tags"`
@@ -35,8 +35,8 @@ type AnalysisResult struct {
 	DocumentType  *string  `json:"document_type"`
 }
 
-// OllamaPerf holds performance metrics from an Ollama generation call.
-type OllamaPerf struct {
+// OpenAIPerf holds performance metrics from an OpenAI-compatible generation call.
+type OpenAIPerf struct {
 	TotalDurationMs    float64 `json:"totalDurationMs"`
 	LoadDurationMs     float64 `json:"loadDurationMs"`
 	PromptTokens       int     `json:"promptTokens"`
@@ -118,8 +118,8 @@ type ScanStatus struct {
 	Done            int      `json:"done"`
 }
 
-// ModelOptions holds per-request Ollama inference parameters.
-// Zero values mean "use Ollama default".
+// ModelOptions holds per-request LLM inference parameters.
+// Zero values mean "use server default".
 type ModelOptions struct {
 	Model         string  `json:"model"`
 	Temperature   float64 `json:"temperature"`
@@ -133,8 +133,8 @@ type ModelOptions struct {
 
 // AppConfig holds all runtime configuration
 type AppConfig struct {
-	OllamaHost     string `json:"ollamaHost"`
-	OllamaModel    string `json:"ollamaModel"`
+	OpenAIBaseURL  string `json:"openaiBaseUrl"`
+	OpenAIModel    string `json:"openaiModel"`
 	PromptFile     string `json:"promptFile"`
 	PaperlessURL   string `json:"paperlessBaseUrl"`
 	PaperlessToken string `json:"paperlessApiToken"`
@@ -146,7 +146,7 @@ type AppConfig struct {
 	EmbedModel     string `json:"embedModel"`
 	IndexPath      string `json:"indexPath"`
 	LogPrompts     bool   `json:"logPrompts"`
-	// Model tuning (0 = use Ollama default)
+	// Model tuning (0 = use server default)
 	Temperature   float64 `json:"temperature"`
 	TopK          int     `json:"topK"`
 	TopP          float64 `json:"topP"`
@@ -154,4 +154,5 @@ type AppConfig struct {
 	NumCtx        int     `json:"numCtx"`
 	Think         bool    `json:"think"`
 	MCPToken      string  `json:"mcpToken"`
+	OpenAIAPIKey  string  `json:"openaiApiKey"`
 }

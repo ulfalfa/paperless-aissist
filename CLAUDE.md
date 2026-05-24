@@ -2,7 +2,7 @@
 
 ## What this project is
 
-AI-powered metadata extraction and document assistant for [paperless-ngx](https://docs.paperless-ngx.com/). Uses [Ollama](https://ollama.com/) for LLM inference (text generation, embeddings, tool calling). Single Go binary with embedded web UI.
+AI-powered metadata extraction and document assistant for [paperless-ngx](https://docs.paperless-ngx.com/). Uses any OpenAI-compatible LLM endpoint (e.g. LiteLLM, vLLM, Ollama via `/v1/`) for inference (text generation, embeddings, tool calling). Single Go binary with embedded web UI.
 
 ## Build & run
 
@@ -25,7 +25,7 @@ internal/
   config/                  .env loading, prompt template (prompt.md), Save/Load
   logger/                  In-memory ring buffer (200 entries), /api/logs
   mcp/                     Model Context Protocol HTTP handler (/mcp/*)
-  ollama/                  Ollama client: /api/generate, /api/chat, /api/embed
+  openai/                  OpenAI-compatible client: /v1/chat/completions, /v1/embeddings, /v1/models
   paperless/               paperless-ngx REST client (docs, tags, correspondents, types)
   pdf/                     PDF text extraction
   promptlog/               JSONL logging for LLM calls (LOG_PROMPTS=true)
@@ -44,14 +44,13 @@ web/
 - **Single file server**: `web/server.go` contains all HTTP handlers, routes, and template helpers. Router is chi/v5.
 - **Embedded templates**: All HTML is embedded in the binary via `web/embed.go`. HTMX 2.0 for dynamic updates, PicoCSS for styling, marked.js for markdown rendering.
 - **Tool abstraction**: `tools.Execute()` is the single dispatch point for both MCP and RAG chat tool calls. Adding a new tool means updating `tools/tools.go` and `rag/query.go:buildTools()`.
-- **Stateless chat**: Conversation history lives client-side in a hidden `<input>` field. Each request sends the full history to the server, which prepends the system prompt and RAG context before calling Ollama.
-- **Ollama keep-alive**: All requests set `keep_alive: -1` to keep models loaded in GPU memory indefinitely.
+- **Stateless chat**: Conversation history lives client-side in a hidden `<input>` field. Each request sends the full history to the server, which prepends the system prompt and RAG context before calling the LLM.
 
 ## Configuration
 
 All config is via environment variables (`.env` file). See `.env.example`. Key vars:
 
-- `OLLAMA_HOST`, `OLLAMA_MODEL`, `EMBED_MODEL` — LLM connection
+- `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_API_KEY`, `EMBED_MODEL` — LLM connection
 - `PAPERLESS_BASE_URL`, `PAPERLESS_API_TOKEN` — paperless-ngx API
 - `SCAN_TAG`, `SCAN_INTERVAL` — auto-scanner trigger
 - `LOG_PROMPTS=true` — enables JSONL logging of all LLM calls to `data/prompts.jsonl`
@@ -90,4 +89,4 @@ Config and prompt template can also be edited at runtime via the Settings page.
 - `web/server.go` is large (~1300 lines). All handlers, view models, and helpers live here.
 - Template parsing happens in two places: `parseGlobal()` (for layout-only partials) and `parsePage()` (for full pages). New templates must be added to BOTH lists or parsing will fail silently.
 - The RAG system prompt instructs the LLM to avoid unnecessary tool calls. If the LLM makes too many `search_documents` calls, tune the system prompt in `rag/query.go`.
-- Ollama responses can be slow if models are not loaded. The `keep_alive: -1` flag prevents unloading but only takes effect after the first request.
+- LLM responses can be slow if the model is not loaded. For Ollama backends, the `keep_alive: -1` flag (set in all requests) prevents unloading but only takes effect after the first request.

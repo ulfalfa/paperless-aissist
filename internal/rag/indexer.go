@@ -10,7 +10,7 @@ import (
 
 	"github.com/ulf/paperless-aissist/internal/config"
 	"github.com/ulf/paperless-aissist/internal/logger"
-	"github.com/ulf/paperless-aissist/internal/ollama"
+	"github.com/ulf/paperless-aissist/internal/openai"
 	"github.com/ulf/paperless-aissist/internal/paperless"
 	"github.com/ulf/paperless-aissist/internal/types"
 )
@@ -90,7 +90,7 @@ func (idx *Indexer) RunOnce(full bool) {
 	}
 
 	pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
-	oc := ollama.New(cfg.OllamaHost, cfg.OllamaModel)
+	oc := openai.New(cfg.OpenAIBaseURL, cfg.OpenAIModel, cfg.OpenAIAPIKey)
 
 	docs, err := pc.ListAllDocuments()
 	if err != nil {
@@ -247,8 +247,8 @@ type SearchResult struct {
 }
 
 // SearchText embeds query and returns the top-k most similar documents.
-func (idx *Indexer) SearchText(ctx context.Context, ollamaHost, embedModel, query string, k int) ([]SearchResult, error) {
-	oc := ollama.New(ollamaHost, "")
+func (idx *Indexer) SearchText(ctx context.Context, baseURL, embedModel, apiKey, query string, k int) ([]SearchResult, error) {
+	oc := openai.New(baseURL, "", apiKey)
 	emb, err := oc.Embed(embedModel, query)
 	if err != nil {
 		return nil, fmt.Errorf("embed query: %w", err)
