@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ulf/paperless-aissist/internal/types"
 )
@@ -357,6 +359,92 @@ func (c *Client) RemoveTags(id int, tagIDs []int) error {
 		DocumentType:  doc.DocumentType,
 		Tags:          remaining,
 	})
+}
+
+// UploadOptions holds optional metadata for a document upload.
+type UploadOptions struct {
+	Title           string
+	CorrespondentID *int
+	DocumentTypeID  *int
+	TagIDs          []int
+	Created         string // YYYY-MM-DD
+}
+
+// UploadDocument uploads a document via POST /api/documents/post_document/ and
+// returns the task ID assigned by paperless-ngx for background processing.
+func (c *Client) UploadDocument(filename string, data []byte, opts UploadOptions) (string, error) {
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+
+	part, err := w.CreateFormFile("document", filename)
+	if err != nil {
+		return "", err
+	}
+	if _, err := part.Write(data); err != nil {
+		return "", err
+	}
+	if opts.Title != "" {
+		_ = w.WriteField("title", opts.Title)
+	}
+	if opts.CorrespondentID != nil {
+		_ = w.WriteField("correspondent", strconv.Itoa(*opts.CorrespondentID))
+	}
+	if opts.DocumentTypeID != nil {
+		_ = w.WriteField("document_type", strconv.Itoa(*opts.DocumentTypeID))
+	}
+	for _, id := range opts.TagIDs {
+		_ = w.WriteField("tags", strconv.Itoa(id))
+	}
+	if opts.Created != "" {
+		_ = w.WriteField("created", opts.Created)
+	}
+	w.Close()
+
+	req, err := http.NewRequest("POST", c.baseURL+"/api/documents/post_document/", &body)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Token "+c.token)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("upload failed: %d %s", resp.StatusCode, string(respBody))
+	}
+	// paperless returns the task ID as a JSON-quoted string: "\"<uuid>\""
+	taskID := strings.Trim(strings.TrimSpace(string(respBody)), "\"")
+	return taskID, nil
+}
+
+type taskResult struct {
+	TaskID string `json:"task_id"`
+	Status string `json:"status"` // PENDING, STARTED, SUCCESS, FAILURE
+	Result string `json:"result"`
+}
+
+// WaitForTask polls /api/tasks/ until the task reaches a terminal state or the
+// timeout elapses. Returns status ("SUCCESS", "FAILURE", "TIMEOUT") and result string.
+func (c *Client) WaitForTask(taskID string, timeoutSecs int) (status, result string, err error) {
+	deadline := time.Now().Add(time.Duration(timeoutSecs) * time.Second)
+	for time.Now().Before(deadline) {
+		var tasks []taskResult
+		path := "/api/tasks/?task_id=" + url.QueryEscape(taskID)
+		if ferr := c.get(path, &tasks); ferr != nil {
+			return "", "", ferr
+		}
+		if len(tasks) > 0 {
+			t := tasks[0]
+			if t.Status == "SUCCESS" || t.Status == "FAILURE" {
+				return t.Status, t.Result, nil
+			}
+		}
+		time.Sleep(2 * time.Second)
+	}
+	return "TIMEOUT", "", nil
 }
 
 // ResolveOrCreate finds an item by name (case-insensitive) or creates it if missing.

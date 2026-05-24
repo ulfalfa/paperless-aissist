@@ -434,6 +434,30 @@ func buildTools() []openai.ChatTool {
 				}`),
 			},
 		},
+		{
+			Type: "function",
+			Function: openai.ChatToolFunction{
+				Name: "upload_document",
+				Description: "Upload a new document to the paperless-ngx archive. " +
+					"The file must be provided as a base64-encoded string. " +
+					"Optionally set title, correspondent, document type, tags, and creation date. " +
+					"By default waits up to 60 seconds for paperless to finish processing.",
+				Parameters: json.RawMessage(`{
+					"type": "object",
+					"properties": {
+						"filename":          {"type": "string",  "description": "Original filename including extension (e.g. 'invoice.pdf')"},
+						"base64_content":    {"type": "string",  "description": "Base64-encoded file content"},
+						"title":             {"type": "string",  "description": "Document title (optional)"},
+						"correspondent_name":{"type": "string",  "description": "Correspondent name — created if missing (optional)"},
+						"document_type_name":{"type": "string",  "description": "Document type name — created if missing (optional)"},
+						"tag_names":         {"type": "array", "items": {"type": "string"}, "description": "Tags to assign — created if missing (optional)"},
+						"created":           {"type": "string",  "description": "Document creation date (YYYY-MM-DD, optional)"},
+						"wait":              {"type": "boolean", "description": "Wait for processing to complete (default true)"}
+					},
+					"required": ["filename", "base64_content"]
+				}`),
+			},
+		},
 	}
 }
 

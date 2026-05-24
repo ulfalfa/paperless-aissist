@@ -460,6 +460,91 @@ func Execute(name string, args json.RawMessage, pc *paperless.Client, baseURL st
 			Data: map[string]string{"base64": b64, "content_type": contentType},
 		}, nil
 
+	case "upload_document":
+		var p struct {
+			Filename         string   `json:"filename"`
+			Base64Content    string   `json:"base64_content"`
+			Title            string   `json:"title"`
+			CorrespondentName string  `json:"correspondent_name"`
+			DocumentTypeName  string  `json:"document_type_name"`
+			TagNames          []string `json:"tag_names"`
+			Created           string  `json:"created"`
+			Wait              *bool   `json:"wait"`
+		}
+		if err := json.Unmarshal(args, &p); err != nil {
+			return nil, fmt.Errorf("invalid args: %w", err)
+		}
+		if p.Filename == "" {
+			return nil, fmt.Errorf("filename is required")
+		}
+		if p.Base64Content == "" {
+			return nil, fmt.Errorf("base64_content is required")
+		}
+		data, err := base64.StdEncoding.DecodeString(p.Base64Content)
+		if err != nil {
+			return nil, fmt.Errorf("base64_content: %w", err)
+		}
+		opts := paperless.UploadOptions{
+			Title:   p.Title,
+			Created: p.Created,
+		}
+		if p.CorrespondentName != "" {
+			items, err := pc.ListCorrespondents()
+			if err != nil {
+				return nil, err
+			}
+			id, err := pc.ResolveOrCreate("correspondent", p.CorrespondentName, items)
+			if err != nil {
+				return nil, err
+			}
+			opts.CorrespondentID = id
+		}
+		if p.DocumentTypeName != "" {
+			items, err := pc.ListDocumentTypes()
+			if err != nil {
+				return nil, err
+			}
+			id, err := pc.ResolveOrCreate("document_type", p.DocumentTypeName, items)
+			if err != nil {
+				return nil, err
+			}
+			opts.DocumentTypeID = id
+		}
+		if len(p.TagNames) > 0 {
+			tags, err := pc.ListTags()
+			if err != nil {
+				return nil, err
+			}
+			for _, name := range p.TagNames {
+				id, err := pc.ResolveOrCreate("tag", name, tags)
+				if err != nil {
+					return nil, err
+				}
+				if id != nil {
+					opts.TagIDs = append(opts.TagIDs, *id)
+				}
+			}
+		}
+		taskID, err := pc.UploadDocument(p.Filename, data, opts)
+		if err != nil {
+			return nil, err
+		}
+		doWait := p.Wait == nil || *p.Wait
+		if !doWait {
+			return &Result{
+				Text: fmt.Sprintf("document %q uploaded, task_id=%s (not waiting for completion)", p.Filename, taskID),
+				Data: map[string]string{"task_id": taskID, "status": "PENDING"},
+			}, nil
+		}
+		status, taskResult, err := pc.WaitForTask(taskID, 60)
+		if err != nil {
+			return nil, err
+		}
+		return &Result{
+			Text: fmt.Sprintf("document %q uploaded: status=%s result=%s", p.Filename, status, taskResult),
+			Data: map[string]string{"task_id": taskID, "status": status, "result": taskResult},
+		}, nil
+
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}

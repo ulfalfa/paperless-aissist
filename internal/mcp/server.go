@@ -196,6 +196,33 @@ func NewHTTPHandler() http.Handler {
 		return runTool("download_document", b)
 	})
 
+	// upload_document
+	s.AddTool(mcpsdk.NewTool("upload_document",
+		mcpsdk.WithDescription("Upload a new document to the paperless-ngx archive. "+
+			"File must be provided as a base64-encoded string. "+
+			"Optionally set title, correspondent, document type, tags, and creation date. "+
+			"Waits up to 60 seconds for processing by default."),
+		mcpsdk.WithString("filename", mcpsdk.Required(), mcpsdk.Description("Original filename including extension (e.g. 'invoice.pdf')")),
+		mcpsdk.WithString("base64_content", mcpsdk.Required(), mcpsdk.Description("Base64-encoded file content")),
+		mcpsdk.WithString("title", mcpsdk.Description("Document title (optional)")),
+		mcpsdk.WithString("correspondent_name", mcpsdk.Description("Correspondent name — created if missing (optional)")),
+		mcpsdk.WithString("document_type_name", mcpsdk.Description("Document type name — created if missing (optional)")),
+		mcpsdk.WithString("created", mcpsdk.Description("Document creation date (YYYY-MM-DD, optional)")),
+		mcpsdk.WithBoolean("wait", mcpsdk.Description("Wait for processing to complete (default true)")),
+	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		args := req.GetArguments()
+		b, _ := json.Marshal(map[string]any{
+			"filename":          args["filename"],
+			"base64_content":    args["base64_content"],
+			"title":             args["title"],
+			"correspondent_name": args["correspondent_name"],
+			"document_type_name": args["document_type_name"],
+			"created":           args["created"],
+			"wait":              args["wait"],
+		})
+		return runTool("upload_document", b)
+	})
+
 	// analyze_document
 	s.AddTool(mcpsdk.NewTool("analyze_document",
 		mcpsdk.WithDescription("Analyze a document with the LLM and optionally save results"),
