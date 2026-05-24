@@ -1,3 +1,10 @@
+# [0.25.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.24.0...v0.25.0) (2026-05-24)
+
+
+### Features
+
+* improve RAG index freshness, tool descriptions, and index status UI ([c91e26f](https://gitlab.com/ulfalfa/paperless-aissist/commit/c91e26fb150e5e55a350f4a617b20694132b7df2))
+
 # [0.24.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.23.0...v0.24.0) (2026-05-24)
 
 
