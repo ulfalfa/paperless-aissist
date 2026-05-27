@@ -192,7 +192,7 @@ func NewHTTPHandler() http.Handler {
 
 	// download_document
 	s.AddTool(mcpsdk.NewTool("download_document",
-		mcpsdk.WithDescription("Download the original file of a document. Returns JSON with filename, mime_type, and base64-encoded content — same shape as upload_document input."),
+		mcpsdk.WithDescription("Download the original file of a document. Returns filename, mime_type, and base64-encoded content — same shape as upload_document input."),
 		mcpsdk.WithNumber("id", mcpsdk.Required(), mcpsdk.Description("Document ID")),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		args := req.GetArguments()
@@ -208,8 +208,45 @@ func NewHTTPHandler() http.Handler {
 			"mime_type": contentType,
 			"content":   base64.StdEncoding.EncodeToString(data),
 		}
-		j, _ := json.Marshal(result)
-		return mcpsdk.NewToolResultText(string(j)), nil
+		return mcpsdk.NewToolResultStructured(result, filename), nil
+	})
+
+	// document_preview
+	s.AddTool(mcpsdk.NewTool("document_preview",
+		mcpsdk.WithDescription("Download a document with its thumbnail preview in one call. Returns the full PDF as base64 plus a thumbnail image (WebP) from paperless-ngx. Useful for sending both a file attachment and an inline preview image."),
+		mcpsdk.WithNumber("doc_id", mcpsdk.Required(), mcpsdk.Description("Document ID")),
+	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		args := req.GetArguments()
+		id := int(args["doc_id"].(float64))
+		cfg, _ := config.Load()
+		pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
+
+		pdfData, pdfMime, filename, err := pc.GetDocumentDownload(id)
+		if err != nil {
+			return mcpsdk.NewToolResultError(err.Error()), nil
+		}
+		thumbData, thumbMime, err := pc.GetDocumentThumb(id)
+		if err != nil {
+			return mcpsdk.NewToolResultError(err.Error()), nil
+		}
+
+		type page struct {
+			Page     int    `json:"page"`
+			Image    string `json:"image"`
+			MimeType string `json:"mime_type"`
+		}
+		result := struct {
+			Filename string `json:"filename"`
+			MimeType string `json:"mime_type"`
+			PDF      string `json:"pdf"`
+			Pages    []page `json:"pages"`
+		}{
+			Filename: filename,
+			MimeType: pdfMime,
+			PDF:      base64.StdEncoding.EncodeToString(pdfData),
+			Pages:    []page{{Page: 1, Image: base64.StdEncoding.EncodeToString(thumbData), MimeType: thumbMime}},
+		}
+		return mcpsdk.NewToolResultStructured(result, filename), nil
 	})
 
 	// upload_document

@@ -314,6 +314,35 @@ func (c *Client) GetDocumentDownload(id int) ([]byte, string, string, error) {
 	return data, ct, filename, nil
 }
 
+// GetDocumentThumb fetches the thumbnail image for a document.
+// Returns the image bytes and Content-Type (typically image/webp).
+func (c *Client) GetDocumentThumb(id int) ([]byte, string, error) {
+	path := fmt.Sprintf("/api/documents/%d/thumb/", id)
+	req, err := http.NewRequest("GET", c.baseURL+path, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	req.Header.Set("Authorization", "Token "+c.token)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, "", fmt.Errorf("thumb %d: %d %s", id, resp.StatusCode, string(body))
+	}
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, "", err
+	}
+	ct := resp.Header.Get("Content-Type")
+	if ct == "" {
+		ct = "image/webp"
+	}
+	return data, ct, nil
+}
+
 // filenameFromContentDisposition extracts the filename from a Content-Disposition header value.
 // Handles both plain and RFC 5987 encoded filenames.
 func filenameFromContentDisposition(cd string) string {
