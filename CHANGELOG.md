@@ -1,3 +1,10 @@
+# [0.28.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.27.0...v0.28.0) (2026-05-27)
+
+
+### Features
+
+* fix double-nested JSON in download_document and add document_preview tool ([67148f7](https://gitlab.com/ulfalfa/paperless-aissist/commit/67148f7d404d95aead25ff497bbe04e675011ca7))
+
 # [0.27.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.26.1...v0.27.0) (2026-05-27)
 
 
