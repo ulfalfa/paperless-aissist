@@ -1,3 +1,10 @@
+# [0.27.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.26.1...v0.27.0) (2026-05-27)
+
+
+### Features
+
+* return download_document as base64 JSON instead of blob resource ([5076bb3](https://gitlab.com/ulfalfa/paperless-aissist/commit/5076bb3a139133a819cb7c81f3d6e6b85efcc7ab))
+
 ## [0.26.1](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.26.0...v0.26.1) (2026-05-24)
 
 
