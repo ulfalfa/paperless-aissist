@@ -454,15 +454,17 @@ func Execute(name string, args json.RawMessage, pc *paperless.Client, baseURL st
 		if err := json.Unmarshal(args, &p); err != nil {
 			return nil, fmt.Errorf("invalid args: %w", err)
 		}
-		data, contentType, err := pc.GetDocumentDownload(p.ID)
+		data, contentType, filename, err := pc.GetDocumentDownload(p.ID)
 		if err != nil {
 			return nil, err
 		}
-		b64 := base64.StdEncoding.EncodeToString(data)
-		return &Result{
-			Text: fmt.Sprintf("document %d: %d bytes (%s), base64-encoded below", p.ID, len(data), contentType),
-			Data: map[string]string{"base64": b64, "content_type": contentType},
-		}, nil
+		result := map[string]string{
+			"filename":  filename,
+			"mime_type": contentType,
+			"content":   base64.StdEncoding.EncodeToString(data),
+		}
+		j, _ := json.Marshal(result)
+		return &Result{Text: string(j)}, nil
 
 	case "upload_document":
 		var p struct {

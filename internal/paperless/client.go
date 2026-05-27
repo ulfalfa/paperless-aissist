@@ -282,32 +282,67 @@ func (c *Client) FindDocuments(opts FindOptions) ([]types.PaperlessDocument, err
 }
 
 // GetDocumentDownload fetches the original binary file for a document.
-// Returns the file bytes and the Content-Type header value.
-func (c *Client) GetDocumentDownload(id int) ([]byte, string, error) {
+// Returns the file bytes, Content-Type, and filename (from Content-Disposition).
+func (c *Client) GetDocumentDownload(id int) ([]byte, string, string, error) {
 	path := fmt.Sprintf("/api/documents/%d/download/", id)
 	req, err := http.NewRequest("GET", c.baseURL+path, nil)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 	req.Header.Set("Authorization", "Token "+c.token)
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, "", fmt.Errorf("download %d: %d %s", id, resp.StatusCode, string(body))
+		return nil, "", "", fmt.Errorf("download %d: %d %s", id, resp.StatusCode, string(body))
 	}
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 	ct := resp.Header.Get("Content-Type")
 	if ct == "" {
 		ct = "application/pdf"
 	}
-	return data, ct, nil
+	filename := filenameFromContentDisposition(resp.Header.Get("Content-Disposition"))
+	if filename == "" {
+		filename = fmt.Sprintf("document_%d.pdf", id)
+	}
+	return data, ct, filename, nil
+}
+
+// filenameFromContentDisposition extracts the filename from a Content-Disposition header value.
+// Handles both plain and RFC 5987 encoded filenames.
+func filenameFromContentDisposition(cd string) string {
+	// Try RFC 5987 filename* first (e.g. filename*=UTF-8''foo%20bar.pdf)
+	if idx := strings.Index(cd, "filename*="); idx >= 0 {
+		val := cd[idx+len("filename*="):]
+		if semi := strings.IndexByte(val, ';'); semi >= 0 {
+			val = val[:semi]
+		}
+		val = strings.TrimSpace(val)
+		// Strip encoding prefix (e.g. UTF-8'')
+		if apos := strings.LastIndex(val, "'"); apos >= 0 {
+			val = val[apos+1:]
+		}
+		if unescaped, err := url.PathUnescape(val); err == nil && unescaped != "" {
+			return unescaped
+		}
+	}
+	// Fall back to plain filename= (quoted or unquoted)
+	if idx := strings.Index(cd, "filename="); idx >= 0 {
+		val := cd[idx+len("filename="):]
+		if semi := strings.IndexByte(val, ';'); semi >= 0 {
+			val = val[:semi]
+		}
+		val = strings.TrimSpace(val)
+		val = strings.Trim(val, `"`)
+		return val
+	}
+	return ""
 }
 
 // AddTags adds tag IDs to a document without removing existing tags. Idempotent.
