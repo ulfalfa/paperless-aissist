@@ -1,3 +1,10 @@
+## [0.29.1](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.29.0...v0.29.1) (2026-05-28)
+
+
+### Bug Fixes
+
+* ignore secret write errors on read-only data dir; remove analyze_document MCP tool ([1b9df8c](https://gitlab.com/ulfalfa/paperless-aissist/commit/1b9df8ce3f104998e2f6819420c74e02525ec7e9))
+
 # [0.29.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.28.0...v0.29.0) (2026-05-28)
 
 
