@@ -6,7 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
+	"strconv"
+	"strings"
 
 	mcpsdk "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -14,13 +15,85 @@ import (
 	"github.com/ulf/paperless-aissist/internal/imageconv"
 	"github.com/ulf/paperless-aissist/internal/paperless"
 	"github.com/ulf/paperless-aissist/internal/rag"
-	"github.com/ulf/paperless-aissist/internal/signedurl"
 	"github.com/ulf/paperless-aissist/internal/tools"
 	"github.com/ulf/paperless-aissist/internal/types"
 )
 
 func NewHTTPHandler() http.Handler {
-	s := server.NewMCPServer("paperless-aissist", "0.1.0")
+	s := server.NewMCPServer("paperless-aissist", "0.1.0",
+		server.WithResourceCapabilities(false, false),
+	)
+
+	// Resource template: paperless://document/{id}/pdf
+	s.AddResourceTemplate(
+		mcpsdk.NewResourceTemplate(
+			"paperless://document/{id}/pdf",
+			"Document PDF",
+			mcpsdk.WithTemplateDescription("Full PDF file for a paperless-ngx document"),
+			mcpsdk.WithTemplateMIMEType("application/pdf"),
+		),
+		func(ctx context.Context, req mcpsdk.ReadResourceRequest) ([]mcpsdk.ResourceContents, error) {
+			parts := strings.Split(req.Params.URI, "/")
+			// "paperless://document/42/pdf" → ["paperless:", "", "document", "42", "pdf"]
+			if len(parts) < 5 {
+				return nil, fmt.Errorf("invalid resource URI: %s", req.Params.URI)
+			}
+			id, err := strconv.Atoi(parts[3])
+			if err != nil {
+				return nil, fmt.Errorf("invalid document ID in URI: %s", req.Params.URI)
+			}
+			cfg, _ := config.Load()
+			pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
+			data, contentType, _, err := pc.GetDocumentDownload(id)
+			if err != nil {
+				return nil, err
+			}
+			return []mcpsdk.ResourceContents{
+				mcpsdk.BlobResourceContents{
+					URI:      req.Params.URI,
+					MIMEType: contentType,
+					Blob:     base64.StdEncoding.EncodeToString(data),
+				},
+			}, nil
+		},
+	)
+
+	// Resource template: paperless://document/{id}/preview
+	s.AddResourceTemplate(
+		mcpsdk.NewResourceTemplate(
+			"paperless://document/{id}/preview",
+			"Document Preview",
+			mcpsdk.WithTemplateDescription("JPEG thumbnail preview for a paperless-ngx document"),
+			mcpsdk.WithTemplateMIMEType("image/jpeg"),
+		),
+		func(ctx context.Context, req mcpsdk.ReadResourceRequest) ([]mcpsdk.ResourceContents, error) {
+			parts := strings.Split(req.Params.URI, "/")
+			if len(parts) < 5 {
+				return nil, fmt.Errorf("invalid resource URI: %s", req.Params.URI)
+			}
+			id, err := strconv.Atoi(parts[3])
+			if err != nil {
+				return nil, fmt.Errorf("invalid document ID in URI: %s", req.Params.URI)
+			}
+			cfg, _ := config.Load()
+			pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
+			thumbData, _, err := pc.GetDocumentThumb(id)
+			if err != nil {
+				return nil, err
+			}
+			jpegData, err := imageconv.WebPToJPEG(thumbData, 85)
+			if err != nil {
+				return nil, err
+			}
+			return []mcpsdk.ResourceContents{
+				mcpsdk.BlobResourceContents{
+					URI:      req.Params.URI,
+					MIMEType: "image/jpeg",
+					Blob:     base64.StdEncoding.EncodeToString(jpegData),
+				},
+			}, nil
+		},
+	)
 
 	// helper: run a tool via the shared tools package and return JSON
 	runTool := func(name string, args json.RawMessage) (*mcpsdk.CallToolResult, error) {
@@ -63,22 +136,85 @@ func NewHTTPHandler() http.Handler {
 
 	// get_document
 	s.AddTool(mcpsdk.NewTool("get_document",
-		mcpsdk.WithDescription("Retrieve full details and content of a specific document by its numeric ID. Use this immediately when a document ID is known."),
+		mcpsdk.WithDescription("Get a document by ID. Returns metadata (title, correspondent, document type, tags, dates) "+
+			"and MCP resource URIs for fetching the PDF (resource_uri) and JPEG thumbnail (preview_uri) via resources/read. "+
+			"Set include_content=true to also return the full OCR text (can be very large — only use when text analysis is required)."),
 		mcpsdk.WithNumber("id", mcpsdk.Required(), mcpsdk.Description("Document ID")),
+		mcpsdk.WithBoolean("include_content", mcpsdk.Description("Include full OCR text in response (default false)")),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		args := req.GetArguments()
-		b, _ := json.Marshal(map[string]any{"id": args["id"]})
-		return runTool("get_document", b)
+		id := int(args["id"].(float64))
+		includeContent, _ := args["include_content"].(bool)
+		cfg, _ := config.Load()
+		pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
+		doc, err := pc.GetDocument(id)
+		if err != nil {
+			return mcpsdk.NewToolResultError(err.Error()), nil
+		}
+		type docMeta struct {
+			ID            int    `json:"id"`
+			Title         string `json:"title"`
+			Created       string `json:"created"`
+			Modified      string `json:"modified"`
+			Correspondent *int   `json:"correspondent"`
+			DocumentType  *int   `json:"document_type"`
+			Tags          []int  `json:"tags"`
+			ResourceURI   string `json:"resource_uri"`
+			PreviewURI    string `json:"preview_uri"`
+			Content       string `json:"content,omitempty"`
+		}
+		res := docMeta{
+			ID:            doc.ID,
+			Title:         doc.Title,
+			Created:       doc.Created,
+			Modified:      doc.Modified,
+			Correspondent: doc.Correspondent,
+			DocumentType:  doc.DocumentType,
+			Tags:          doc.Tags,
+			ResourceURI:   fmt.Sprintf("paperless://document/%d/pdf", id),
+			PreviewURI:    fmt.Sprintf("paperless://document/%d/preview", id),
+		}
+		if includeContent {
+			res.Content = doc.Content
+		}
+		return mcpsdk.NewToolResultStructured(res, doc.Title), nil
 	})
 
-	// search_documents
+	// search_documents (unified: semantic by default, keyword with semantic=false)
 	s.AddTool(mcpsdk.NewTool("search_documents",
-		mcpsdk.WithDescription("Search paperless-ngx by keyword, exact title, or person/company name. Use for exact name lookups or when the user mentions a specific organization."),
+		mcpsdk.WithDescription("Search the document archive. Uses semantic (vector) search by default — finds documents by meaning, not just exact words. "+
+			"Infer the document type in your query for best results (e.g. 'Überweisung Müller Kontoauszug' instead of just 'Müller'). "+
+			"Use sort_by='date' for 'latest/newest X' questions. "+
+			"Set semantic=false for exact keyword or title matching."),
 		mcpsdk.WithString("query", mcpsdk.Required(), mcpsdk.Description("Search query")),
-		mcpsdk.WithNumber("page_size", mcpsdk.Description("Max results (default 10)")),
+		mcpsdk.WithBoolean("semantic", mcpsdk.Description("Use semantic/vector search (default true). Set to false for exact keyword matching.")),
+		mcpsdk.WithNumber("max_results", mcpsdk.Description("Max results (default 10)")),
+		mcpsdk.WithString("sort_by", mcpsdk.Description("Semantic only: 'relevance' (default) or 'date' (newest first)")),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		args := req.GetArguments()
-		b, _ := json.Marshal(map[string]any{"query": args["query"], "page_size": args["page_size"]})
+		query, _ := args["query"].(string)
+		semantic := true
+		if s, ok := args["semantic"].(bool); ok {
+			semantic = s
+		}
+		maxResults := 10
+		if n, ok := args["max_results"].(float64); ok && n > 0 {
+			maxResults = int(n)
+		}
+		if semantic {
+			sortBy, _ := args["sort_by"].(string)
+			idx := rag.Global()
+			if idx == nil {
+				return mcpsdk.NewToolResultError("RAG index not initialized — semantic search unavailable"), nil
+			}
+			cfg, _ := config.Load()
+			results, err := idx.SearchText(ctx, cfg.OpenAIBaseURL, cfg.EmbedModel, cfg.OpenAIAPIKey, query, maxResults, sortBy)
+			if err != nil {
+				return mcpsdk.NewToolResultError(err.Error()), nil
+			}
+			return jsonResult(results)
+		}
+		b, _ := json.Marshal(map[string]any{"query": query, "page_size": maxResults})
 		return runTool("search_documents", b)
 	})
 
@@ -191,96 +327,6 @@ func NewHTTPHandler() http.Handler {
 		return mcpsdk.NewToolResultText(tr.Text), nil
 	})
 
-	// download_document
-	s.AddTool(mcpsdk.NewTool("download_document",
-		mcpsdk.WithDescription("Download the original PDF of a document. "+
-			"Always returns the full file as base64-encoded content (field: content) "+
-			"plus filename and mime_type. "+
-			"If FILE_URL_BASE_URL is configured, also includes a short-lived signed URL (field: url, 15 min TTL) "+
-			"that can be passed directly to Telegram sendDocument or similar APIs."),
-		mcpsdk.WithNumber("id", mcpsdk.Required(), mcpsdk.Description("Document ID")),
-	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		args := req.GetArguments()
-		id := int(args["id"].(float64))
-		cfg, _ := config.Load()
-		pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
-
-		data, contentType, filename, err := pc.GetDocumentDownload(id)
-		if err != nil {
-			return mcpsdk.NewToolResultError(err.Error()), nil
-		}
-
-		type downloadResult struct {
-			Filename string `json:"filename"`
-			MimeType string `json:"mime_type"`
-			URL      string `json:"url,omitempty"`
-			Content  string `json:"content"`
-		}
-		res := downloadResult{
-			Filename: filename,
-			MimeType: contentType,
-			Content:  base64.StdEncoding.EncodeToString(data),
-		}
-		if cfg.FileURLBase != "" {
-			secret, err := signedurl.GetSecret(cfg.IndexPath)
-			if err == nil {
-				res.URL = cfg.FileURLBase + "/files/" + signedurl.Sign(id, "pdf", 15*time.Minute, secret)
-			}
-		}
-
-		return mcpsdk.NewToolResultStructured(res, res.Filename), nil
-	})
-
-	// document_preview
-	s.AddTool(mcpsdk.NewTool("document_preview",
-		mcpsdk.WithDescription("Fetch a JPEG thumbnail preview of a document. "+
-			"Always returns the thumbnail as inline base64-encoded JPEG (field: preview, mime_type: image/jpeg). "+
-			"Also returns filename and the PDF's mime_type for reference. "+
-			"If FILE_URL_BASE_URL is configured, also includes a short-lived signed URL for the full PDF (field: url, 15 min TTL). "+
-			"Use this to show an inline image preview (e.g. Telegram photo) without downloading the full PDF."),
-		mcpsdk.WithNumber("doc_id", mcpsdk.Required(), mcpsdk.Description("Document ID")),
-	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		args := req.GetArguments()
-		id := int(args["doc_id"].(float64))
-		cfg, _ := config.Load()
-		pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
-
-		doc, err := pc.GetDocument(id)
-		if err != nil {
-			return mcpsdk.NewToolResultError(err.Error()), nil
-		}
-		thumbData, _, err := pc.GetDocumentThumb(id)
-		if err != nil {
-			return mcpsdk.NewToolResultError(err.Error()), nil
-		}
-		jpegData, err := imageconv.WebPToJPEG(thumbData, 85)
-		if err != nil {
-			return mcpsdk.NewToolResultError("preview conversion: " + err.Error()), nil
-		}
-
-		type previewResult struct {
-			Filename        string `json:"filename"`
-			MimeType        string `json:"mime_type"`
-			URL             string `json:"url,omitempty"`
-			Preview         string `json:"preview"`
-			PreviewMimeType string `json:"preview_mime_type"`
-		}
-		res := previewResult{
-			Filename:        doc.Title + ".pdf",
-			MimeType:        "application/pdf",
-			Preview:         base64.StdEncoding.EncodeToString(jpegData),
-			PreviewMimeType: "image/jpeg",
-		}
-		if cfg.FileURLBase != "" {
-			secret, err := signedurl.GetSecret(cfg.IndexPath)
-			if err == nil {
-				res.URL = cfg.FileURLBase + "/files/" + signedurl.Sign(id, "pdf", 15*time.Minute, secret)
-			}
-		}
-
-		return mcpsdk.NewToolResultStructured(res, res.Filename), nil
-	})
-
 	// upload_document
 	s.AddTool(mcpsdk.NewTool("upload_document",
 		mcpsdk.WithDescription("Upload a new document to the paperless-ngx archive. "+
@@ -359,38 +405,6 @@ func NewHTTPHandler() http.Handler {
 			return mcpsdk.NewToolResultError(err.Error()), nil
 		}
 		return mcpsdk.NewToolResultText(fmt.Sprintf("Document %d updated successfully", id)), nil
-	})
-
-	// search_documents_semantic
-	s.AddTool(mcpsdk.NewTool("search_documents_semantic",
-		mcpsdk.WithDescription("Search the document archive by content similarity (vector search). "+
-			"Before writing the query, infer what type of document would contain the answer — for example: "+
-			"a question about a bank transfer implies 'Kontoauszug', taxes imply 'Steuerbescheid', "+
-			"insurance implies 'Police' or 'Rechnung', employment implies 'Arbeitsvertrag' or 'Zeugnis'. "+
-			"Include the inferred document type AND any person/company names in the query string. "+
-			"Example: for 'Wann habe ich an Müller überwiesen?' use query 'Überweisung Müller Kontoauszug'. "+
-			"Default sort is by content similarity. Use sort_by='date' for 'aktuellste/letzte/neueste X' questions — re-sorts the top results by document creation date (newest first)."),
-		mcpsdk.WithString("query", mcpsdk.Required(), mcpsdk.Description("Descriptive semantic search query")),
-		mcpsdk.WithNumber("max_docs", mcpsdk.Description("Max results (default 10)")),
-		mcpsdk.WithString("sort_by", mcpsdk.Description("Sort order: 'relevance' (default, by similarity) or 'date' (newest document first)")),
-	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		args := req.GetArguments()
-		query, _ := args["query"].(string)
-		k := 10
-		if n, ok := args["max_docs"].(float64); ok && n > 0 {
-			k = int(n)
-		}
-		sortBy, _ := args["sort_by"].(string)
-		idx := rag.Global()
-		if idx == nil {
-			return mcpsdk.NewToolResultError("RAG index not initialized"), nil
-		}
-		cfg, _ := config.Load()
-		results, err := idx.SearchText(ctx, cfg.OpenAIBaseURL, cfg.EmbedModel, cfg.OpenAIAPIKey, query, k, sortBy)
-		if err != nil {
-			return mcpsdk.NewToolResultError(err.Error()), nil
-		}
-		return jsonResult(results)
 	})
 
 	return server.NewStreamableHTTPServer(s, server.WithStateLess(true))
