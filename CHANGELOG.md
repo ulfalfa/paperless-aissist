@@ -1,3 +1,10 @@
+# [0.31.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.30.0...v0.31.0) (2026-05-28)
+
+
+### Features
+
+* replace download/preview tools with MCP resources/read ([6db9a3d](https://gitlab.com/ulfalfa/paperless-aissist/commit/6db9a3df5c582835f0b6b30675531426b0414e52))
+
 # [0.30.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.29.1...v0.30.0) (2026-05-28)
 
 
