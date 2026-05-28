@@ -1,3 +1,10 @@
+# [0.29.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.28.0...v0.29.0) (2026-05-28)
+
+
+### Features
+
+* signed file URLs and WebP-to-JPEG conversion for MCP download tools ([7bfb118](https://gitlab.com/ulfalfa/paperless-aissist/commit/7bfb118f70e464d477430777955e7ef70fda4bd2))
+
 # [0.28.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.27.0...v0.28.0) (2026-05-27)
 
 
