@@ -119,10 +119,11 @@ func (m *Manager) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 
-		// Auth pages, MCP and webhook endpoints are always exempt
+		// Auth pages, MCP, webhook, and signed file endpoints are always exempt
 		if path == "/setup" || path == "/login" || path == "/logout" ||
 			path == "/mcp" || len(path) > 4 && path[:5] == "/mcp/" ||
-			path == "/api/webhook" {
+			path == "/api/webhook" ||
+			len(path) > 6 && path[:7] == "/files/" {
 			next.ServeHTTP(w, r)
 			return
 		}

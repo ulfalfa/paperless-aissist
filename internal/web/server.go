@@ -27,6 +27,8 @@ import (
 	"github.com/ulf/paperless-aissist/internal/rag"
 	"github.com/ulf/paperless-aissist/internal/scanner"
 	"github.com/ulf/paperless-aissist/internal/types"
+	"github.com/ulf/paperless-aissist/internal/imageconv"
+	"github.com/ulf/paperless-aissist/internal/signedurl"
 	"github.com/ulf/paperless-aissist/internal/validate"
 )
 
@@ -197,6 +199,9 @@ func NewRouter(am *auth.Manager, mcpToken string) http.Handler {
 		r.With(tokenGuard).Handle("/mcp", mcpHandler)
 		r.With(tokenGuard).Handle("/mcp/*", mcpHandler)
 	}
+
+	// Signed file download endpoint — public, token carries auth
+	r.Get("/files/{token}", handleSignedFile)
 
 	// API
 	r.Get("/api/config", handleGetConfig)
@@ -1592,6 +1597,56 @@ func handleLogout(w http.ResponseWriter, r *http.Request) {
 	authManager.Logout(token)
 	authManager.ClearCookie(w)
 	http.Redirect(w, r, "/login", http.StatusFound)
+}
+
+// handleSignedFile serves PDF or JPEG preview via a short-lived HMAC-signed URL.
+// The token encodes doc ID, kind, expiry, and HMAC signature — no session required.
+func handleSignedFile(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	cfg, err := config.Load()
+	if err != nil {
+		http.Error(w, "config error", http.StatusInternalServerError)
+		return
+	}
+	secret, err := signedurl.GetSecret(cfg.IndexPath)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	docID, kind, err := signedurl.Verify(token, secret)
+	if err != nil {
+		http.Error(w, "forbidden: "+err.Error(), http.StatusForbidden)
+		return
+	}
+	pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
+	switch kind {
+	case "pdf":
+		data, contentType, filename, err := pc.GetDocumentDownload(docID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		w.Header().Set("Content-Type", contentType)
+		w.Header().Set("Content-Disposition", "inline; filename=\""+filename+"\"")
+		w.WriteHeader(http.StatusOK)
+		w.Write(data)
+	case "preview":
+		webpData, _, err := pc.GetDocumentThumb(docID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		jpegData, err := imageconv.WebPToJPEG(webpData, 85)
+		if err != nil {
+			http.Error(w, "conversion error: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.WriteHeader(http.StatusOK)
+		w.Write(jpegData)
+	default:
+		http.Error(w, "unknown kind", http.StatusBadRequest)
+	}
 }
 
 // renderAuth renders standalone auth pages (no layout, no nav).

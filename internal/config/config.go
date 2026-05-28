@@ -48,6 +48,7 @@ func Load() (*types.AppConfig, error) {
 		NumCtx:         numCtx,
 		MCPToken:       getEnv("MCP_API_TOKEN", ""),
 		OpenAIAPIKey:   getEnv("OPENAI_API_KEY", ""),
+		FileURLBase:    getEnv("FILE_URL_BASE_URL", ""),
 	}, nil
 }
 

@@ -157,4 +157,5 @@ type AppConfig struct {
 	Think         bool    `json:"think"`
 	MCPToken      string  `json:"mcpToken"`
 	OpenAIAPIKey  string  `json:"openaiApiKey"`
+	FileURLBase   string  `json:"fileUrlBase"` // base URL for signed file download links
 }
