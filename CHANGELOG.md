@@ -1,3 +1,10 @@
+# [0.30.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.29.1...v0.30.0) (2026-05-28)
+
+
+### Features
+
+* simplify download_document and document_preview — always inline, clear separation ([5ca736d](https://gitlab.com/ulfalfa/paperless-aissist/commit/5ca736d014b8ee1cd008a62d56ed1f791d58dc6e))
+
 ## [0.29.1](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.29.0...v0.29.1) (2026-05-28)
 
 
