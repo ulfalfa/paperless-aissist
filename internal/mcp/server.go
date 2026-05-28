@@ -12,13 +12,11 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/ulf/paperless-aissist/internal/config"
 	"github.com/ulf/paperless-aissist/internal/imageconv"
-	"github.com/ulf/paperless-aissist/internal/openai"
 	"github.com/ulf/paperless-aissist/internal/paperless"
 	"github.com/ulf/paperless-aissist/internal/rag"
 	"github.com/ulf/paperless-aissist/internal/signedurl"
 	"github.com/ulf/paperless-aissist/internal/tools"
 	"github.com/ulf/paperless-aissist/internal/types"
-	"github.com/ulf/paperless-aissist/internal/validate"
 )
 
 func NewHTTPHandler() http.Handler {
@@ -338,53 +336,6 @@ func NewHTTPHandler() http.Handler {
 			"wait":              args["wait"],
 		})
 		return runTool("upload_document", b)
-	})
-
-	// analyze_document
-	s.AddTool(mcpsdk.NewTool("analyze_document",
-		mcpsdk.WithDescription("Analyze a document with the LLM and optionally save results"),
-		mcpsdk.WithNumber("id", mcpsdk.Required(), mcpsdk.Description("Document ID")),
-		mcpsdk.WithBoolean("save", mcpsdk.Description("Save results to paperless-ngx (default false)")),
-	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-		args := req.GetArguments()
-		id := int(args["id"].(float64))
-		save := false
-		if sv, ok := args["save"].(bool); ok {
-			save = sv
-		}
-		cfg, _ := config.Load()
-		pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
-		oc := openai.New(cfg.OpenAIBaseURL, cfg.OpenAIModel, cfg.OpenAIAPIKey)
-
-		doc, err := pc.GetDocument(id)
-		if err != nil {
-			return mcpsdk.NewToolResultError(err.Error()), nil
-		}
-		promptTemplate, err := config.LoadPrompt(cfg.PromptFile)
-		if err != nil {
-			return mcpsdk.NewToolResultError(err.Error()), nil
-		}
-		tags, _ := pc.ListTags()
-		correspondents, _ := pc.ListCorrespondents()
-		docTypes, _ := pc.ListDocumentTypes()
-		hints := types.Hints{
-			Tags:           namesOf(tags),
-			Correspondents: namesOf(correspondents),
-			DocumentTypes:  namesOf(docTypes),
-		}
-		prompt := openai.BuildPrompt(promptTemplate, doc.Content, hints)
-		result, _, err := oc.Analyze(prompt, types.ModelOptions{})
-		if err != nil {
-			return mcpsdk.NewToolResultError(err.Error()), nil
-		}
-		result = validate.Apply(result, cfg.AITag)
-
-		if save {
-			if err := applyAndSave(pc, doc, result, tags, correspondents, docTypes); err != nil {
-				return mcpsdk.NewToolResultError(err.Error()), nil
-			}
-		}
-		return jsonResult(result)
 	})
 
 	// update_document

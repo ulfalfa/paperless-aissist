@@ -45,12 +45,9 @@ func GetSecret(indexPath string) ([]byte, error) {
 	if _, err := rand.Read(b); err != nil {
 		return nil, fmt.Errorf("generate file URL secret: %w", err)
 	}
-	if err := os.MkdirAll(indexPath, 0700); err != nil {
-		return nil, err
-	}
-	if err := os.WriteFile(path, []byte(hex.EncodeToString(b)), 0600); err != nil {
-		return nil, err
-	}
+	// Best-effort persistence — ignore write errors (e.g. read-only data dir)
+	_ = os.MkdirAll(indexPath, 0700)
+	_ = os.WriteFile(path, []byte(hex.EncodeToString(b)), 0600)
 	secretCache = b
 	return secretCache, nil
 }
