@@ -193,52 +193,39 @@ func NewHTTPHandler() http.Handler {
 
 	// download_document
 	s.AddTool(mcpsdk.NewTool("download_document",
-		mcpsdk.WithDescription("Download the original file of a document. "+
-			"By default returns a short-lived signed URL (15 min) to avoid large MCP payloads. "+
-			"Set inline=true to also receive the full base64-encoded content."),
+		mcpsdk.WithDescription("Download the original PDF of a document. "+
+			"Always returns the full file as base64-encoded content (field: content) "+
+			"plus filename and mime_type. "+
+			"If FILE_URL_BASE_URL is configured, also includes a short-lived signed URL (field: url, 15 min TTL) "+
+			"that can be passed directly to Telegram sendDocument or similar APIs."),
 		mcpsdk.WithNumber("id", mcpsdk.Required(), mcpsdk.Description("Document ID")),
-		mcpsdk.WithBoolean("inline", mcpsdk.Description("Also include base64 content in response (default false)")),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		args := req.GetArguments()
 		id := int(args["id"].(float64))
-		inline, _ := args["inline"].(bool)
 		cfg, _ := config.Load()
 		pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
 
-		secret, err := signedurl.GetSecret(cfg.IndexPath)
+		data, contentType, filename, err := pc.GetDocumentDownload(id)
 		if err != nil {
-			return mcpsdk.NewToolResultError("secret error: " + err.Error()), nil
+			return mcpsdk.NewToolResultError(err.Error()), nil
 		}
-		token := signedurl.Sign(id, "pdf", 15*time.Minute, secret)
 
 		type downloadResult struct {
 			Filename string `json:"filename"`
 			MimeType string `json:"mime_type"`
 			URL      string `json:"url,omitempty"`
-			Content  string `json:"content,omitempty"`
+			Content  string `json:"content"`
 		}
-		res := downloadResult{}
-
+		res := downloadResult{
+			Filename: filename,
+			MimeType: contentType,
+			Content:  base64.StdEncoding.EncodeToString(data),
+		}
 		if cfg.FileURLBase != "" {
-			res.URL = cfg.FileURLBase + "/files/" + token
-		}
-
-		if inline || cfg.FileURLBase == "" {
-			data, contentType, filename, err := pc.GetDocumentDownload(id)
-			if err != nil {
-				return mcpsdk.NewToolResultError(err.Error()), nil
+			secret, err := signedurl.GetSecret(cfg.IndexPath)
+			if err == nil {
+				res.URL = cfg.FileURLBase + "/files/" + signedurl.Sign(id, "pdf", 15*time.Minute, secret)
 			}
-			res.Filename = filename
-			res.MimeType = contentType
-			res.Content = base64.StdEncoding.EncodeToString(data)
-		} else {
-			// Fetch only metadata (filename, mime_type) without downloading the full PDF
-			doc, err := pc.GetDocument(id)
-			if err != nil {
-				return mcpsdk.NewToolResultError(err.Error()), nil
-			}
-			res.Filename = doc.Title + ".pdf"
-			res.MimeType = "application/pdf"
 		}
 
 		return mcpsdk.NewToolResultStructured(res, res.Filename), nil
@@ -246,66 +233,49 @@ func NewHTTPHandler() http.Handler {
 
 	// document_preview
 	s.AddTool(mcpsdk.NewTool("document_preview",
-		mcpsdk.WithDescription("Download a document with its thumbnail preview. "+
-			"By default returns short-lived signed URLs (15 min) for both PDF and JPEG preview. "+
-			"Set inline=true to also receive base64-encoded content and preview image. "+
-			"Preview image is JPEG (converted from paperless-ngx WebP thumbnail)."),
+		mcpsdk.WithDescription("Fetch a JPEG thumbnail preview of a document. "+
+			"Always returns the thumbnail as inline base64-encoded JPEG (field: preview, mime_type: image/jpeg). "+
+			"Also returns filename and the PDF's mime_type for reference. "+
+			"If FILE_URL_BASE_URL is configured, also includes a short-lived signed URL for the full PDF (field: url, 15 min TTL). "+
+			"Use this to show an inline image preview (e.g. Telegram photo) without downloading the full PDF."),
 		mcpsdk.WithNumber("doc_id", mcpsdk.Required(), mcpsdk.Description("Document ID")),
-		mcpsdk.WithBoolean("inline", mcpsdk.Description("Also include base64 content and preview in response (default false)")),
 	), func(ctx context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
 		args := req.GetArguments()
 		id := int(args["doc_id"].(float64))
-		inline, _ := args["inline"].(bool)
 		cfg, _ := config.Load()
 		pc := paperless.New(cfg.PaperlessURL, cfg.PaperlessToken, cfg.StrictMetadata)
 
-		secret, err := signedurl.GetSecret(cfg.IndexPath)
+		doc, err := pc.GetDocument(id)
 		if err != nil {
-			return mcpsdk.NewToolResultError("secret error: " + err.Error()), nil
+			return mcpsdk.NewToolResultError(err.Error()), nil
 		}
-		pdfToken := signedurl.Sign(id, "pdf", 15*time.Minute, secret)
-		previewToken := signedurl.Sign(id, "preview", 15*time.Minute, secret)
+		thumbData, _, err := pc.GetDocumentThumb(id)
+		if err != nil {
+			return mcpsdk.NewToolResultError(err.Error()), nil
+		}
+		jpegData, err := imageconv.WebPToJPEG(thumbData, 85)
+		if err != nil {
+			return mcpsdk.NewToolResultError("preview conversion: " + err.Error()), nil
+		}
 
 		type previewResult struct {
 			Filename        string `json:"filename"`
 			MimeType        string `json:"mime_type"`
 			URL             string `json:"url,omitempty"`
-			PreviewURL      string `json:"preview_url,omitempty"`
+			Preview         string `json:"preview"`
 			PreviewMimeType string `json:"preview_mime_type"`
-			Content         string `json:"content,omitempty"`
-			Preview         string `json:"preview,omitempty"`
 		}
-		res := previewResult{PreviewMimeType: "image/jpeg"}
-
+		res := previewResult{
+			Filename:        doc.Title + ".pdf",
+			MimeType:        "application/pdf",
+			Preview:         base64.StdEncoding.EncodeToString(jpegData),
+			PreviewMimeType: "image/jpeg",
+		}
 		if cfg.FileURLBase != "" {
-			res.URL = cfg.FileURLBase + "/files/" + pdfToken
-			res.PreviewURL = cfg.FileURLBase + "/files/" + previewToken
-		}
-
-		if inline || cfg.FileURLBase == "" {
-			pdfData, pdfMime, filename, err := pc.GetDocumentDownload(id)
-			if err != nil {
-				return mcpsdk.NewToolResultError(err.Error()), nil
+			secret, err := signedurl.GetSecret(cfg.IndexPath)
+			if err == nil {
+				res.URL = cfg.FileURLBase + "/files/" + signedurl.Sign(id, "pdf", 15*time.Minute, secret)
 			}
-			thumbData, _, err := pc.GetDocumentThumb(id)
-			if err != nil {
-				return mcpsdk.NewToolResultError(err.Error()), nil
-			}
-			jpegData, err := imageconv.WebPToJPEG(thumbData, 85)
-			if err != nil {
-				return mcpsdk.NewToolResultError("preview conversion: " + err.Error()), nil
-			}
-			res.Filename = filename
-			res.MimeType = pdfMime
-			res.Content = base64.StdEncoding.EncodeToString(pdfData)
-			res.Preview = base64.StdEncoding.EncodeToString(jpegData)
-		} else {
-			doc, err := pc.GetDocument(id)
-			if err != nil {
-				return mcpsdk.NewToolResultError(err.Error()), nil
-			}
-			res.Filename = doc.Title + ".pdf"
-			res.MimeType = "application/pdf"
 		}
 
 		return mcpsdk.NewToolResultStructured(res, res.Filename), nil
