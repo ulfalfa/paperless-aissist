@@ -1,0 +1,80 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # Conventional Commit lint on every PR
+  commitlint:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - run: npm install --no-save @commitlint/cli @commitlint/config-conventional
+      - run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }}
+
+  # semantic-release: version bump, CHANGELOG commit, tag and GitHub release on merge to main.
+  # Tags pushed with GITHUB_TOKEN do not trigger other workflows, so the binaries are built in the same run.
+  release:
+    if: github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(release):')
+    runs-on: ubuntu-latest
+    concurrency: release
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - run: >-
+          npm install --no-save semantic-release @semantic-release/commit-analyzer
+          @semantic-release/release-notes-generator @semantic-release/changelog
+          @semantic-release/git @semantic-release/github
+      - run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Find the tag semantic-release created (empty if nothing was released)
+        id: tag
+        run: |
+          git fetch --tags --force origin main
+          echo "tag=$(git tag --points-at origin/main | grep '^v' | head -n1)" >> "$GITHUB_OUTPUT"
+
+  # Cross-compile and attach the binaries to the release
+  build:
+    needs: release
+    if: needs.release.outputs.tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build binaries
+        env:
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.version=${TAG}" -o paperless-aissist-linux-amd64 .
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w -X main.version=${TAG}" -o paperless-aissist-darwin-arm64 .
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: gh release upload "$TAG" paperless-aissist-linux-amd64 paperless-aissist-darwin-arm64 --clobber

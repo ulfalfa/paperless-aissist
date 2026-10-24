@@ -64,7 +64,7 @@ Config and prompt template can also be edited at runtime via the Settings page.
 - **Error handling**: `(result, error)` return tuples, errors are returned to caller or logged via `logger`
 - **Concurrency**: `sync.Mutex` for shared state (logger, scanner, indexer), `sync.Map` for chat jobs
 - **No tests**: project has no unit tests; testing is manual
-- **Commits**: conventional commits (`feat:`, `fix:`, `chore:`) — enforced by CI commitlint. semantic-release auto-generates CHANGELOG and GitLab releases
+- **Commits**: conventional commits (`feat:`, `fix:`, `chore:`) — enforced by CI commitlint. semantic-release auto-generates CHANGELOG and GitHub releases
 - **Templates**: server-side Go HTML templates with HTMX partials. Template names match filenames. Use `renderPartial()` for HTMX fragment responses, `render()` for full pages
 
 ## Common tasks
