@@ -1,3 +1,10 @@
+## [0.31.2](https://github.com/ulfalfa/paperless-aissist/compare/v0.31.1...v0.31.2) (2026-10-24)
+
+
+### Bug Fixes
+
+* **ci:** do not comment on issues and PRs when releasing ([93f3620](https://github.com/ulfalfa/paperless-aissist/commit/93f3620861a45aa445a459caaf399bb7ea01f09e))
+
 ## [0.31.1](https://github.com/ulfalfa/paperless-aissist/compare/v0.31.0...v0.31.1) (2026-10-24)
 
 
