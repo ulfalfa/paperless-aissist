@@ -1,3 +1,10 @@
+## [0.31.1](https://github.com/ulfalfa/paperless-aissist/compare/v0.31.0...v0.31.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **ci:** publish releases via GitHub Actions ([512690c](https://github.com/ulfalfa/paperless-aissist/commit/512690c8bbc06c7d88fd4cc1501bd72c17be7ce5))
+
 # [0.31.0](https://gitlab.com/ulfalfa/paperless-aissist/compare/v0.30.0...v0.31.0) (2026-05-28)
 
 
