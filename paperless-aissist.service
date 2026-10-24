@@ -1,6 +1,6 @@
 [Unit]
 Description=paperless-aissist — AI metadata extraction for paperless-ngx
-Documentation=https://gitlab.com/ulfalfa/paperless-aissist
+Documentation=https://github.com/ulfalfa/paperless-aissist
 After=network.target
 
 [Service]

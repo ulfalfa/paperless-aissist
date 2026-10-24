@@ -11,20 +11,9 @@ Fetches documents, sends them to an OpenAI-compatible LLM endpoint (e.g. LiteLLM
 - **Tag Cleanup** — review and consolidate tags with AI assistance
 - **MCP Server** — integrate with Claude Code and other MCP-compatible tools
 
-## Quick Install (Linux)
+## Installation
 
-```bash
-curl -fsSL https://gitlab.com/ulfalfa/paperless-aissist/-/raw/main/install.sh | sudo bash
-```
-
-After installation, edit the config and start the service:
-
-```bash
-sudo nano /opt/paperless-aissist/.env
-sudo systemctl start paperless-aissist
-```
-
-The web UI is then available at `http://<your-server>:8080`.
+Deployed by the `paperless_aissist` Ansible role in `ulfalfa/homelab`. For a manual install see below; the web UI is then available at `http://<your-server>:8080`.
 
 ## Requirements
 
@@ -63,7 +52,7 @@ paperless-aissist --id <N> --dry-run              # analyze without writing back
 
 ## Manual Installation
 
-1. Download the latest binary for your platform from the [releases page](https://gitlab.com/ulfalfa/paperless-aissist/-/releases)
+1. Download the latest binary for your platform from the [releases page](https://github.com/ulfalfa/paperless-aissist/releases)
 2. Copy the [service file](paperless-aissist.service) to `/etc/systemd/system/`
 3. Create `/opt/paperless-aissist/.env` from [.env.example](.env.example)
 4. Run `systemctl enable --now paperless-aissist`
