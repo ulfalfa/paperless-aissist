@@ -1,5 +1,7 @@
 # paperless-aissist
 
+> **Personal tool.** This is published as-is for my own homelab. No support, no issue tracker, no pull requests will be handled.
+
 AI-powered metadata extraction for [paperless-ngx](https://docs.paperless-ngx.com/).
 Fetches documents, sends them to an OpenAI-compatible LLM endpoint (e.g. LiteLLM, vLLM, or Ollama via `/v1/`) for analysis, and writes title, tags, correspondent, document type and creation date back — automatically.
 
